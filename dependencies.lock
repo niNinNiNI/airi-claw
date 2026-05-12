@@ -7,6 +7,10 @@ dependencies:
       path: ../../claw_capabilities/cap_files
       rules:
       - if: $CONFIG{APP_CLAW_CAP_FILES} == True
+    - name: cap_voice
+      path: ../../claw_capabilities/cap_voice
+      rules:
+      - if: $CONFIG{APP_CLAW_CAP_VOICE} == True
     - name: cap_im_platform
       path: ../../claw_capabilities/cap_im_platform
       rules:
@@ -326,6 +330,12 @@ dependencies:
       path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_time
       type: local
     version: '*'
+  cap_voice:
+    dependencies: []
+    source:
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_voice
+      type: local
+    version: '*'
   cap_web_search:
     dependencies: []
     source:
@@ -517,7 +527,7 @@ dependencies:
       type: service
     version: 2.12.3
   espressif/esp_lcd_st7701:
-    component_hash: 0b11e8733e51e12da83003b9d475777eaf47bfbdce01379879bd2504d14f4f83
+    component_hash: d412b3a8704b32b6025aeabf6b3d769eefb9aefb2a3c07baf7cf4a13874c43f0
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -525,14 +535,14 @@ dependencies:
       version: 0.*
     - name: idf
       require: private
-      version: '>5.0.4,!=5.1.1'
+      version: '>=5.4'
     source:
       registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32s3
     - esp32p4
-    version: 1.1.5
+    version: 2.0.2~1
   espressif/esp_lcd_touch:
     component_hash: 3f85a7d95af876f1a6ecca8eb90a81614890d0f03a038390804e5a77e2caf862
     dependencies:
@@ -611,7 +621,7 @@ dependencies:
       type: service
     version: 1.7.0
   espressif/esp_wifi_remote:
-    component_hash: 97b683db5244f4d224997a9d00d09a8f0e13ea0cf39566e1f3b3a11d73f68ee0
+    component_hash: 4ad3e3ec9ce7d26fde1ccd2b550b88952cc96ac089a06e0247f69d005cc31e1f
     dependencies:
     - name: espressif/esp_hosted
       registry_url: https://components.espressif.com
@@ -629,7 +639,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.5.2
+    version: 1.5.1
   espressif/freetype:
     component_hash: a4169cdd22b3572342b2d640d7082405b8895e3214539283601c03412589b65d
     dependencies:
