@@ -1,0 +1,16 @@
+# ninja log v6
+51	56	1778571949773903385	project_elf_src_esp32p4.c	c49d915960044b64
+51	56	1778571949773903385	/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/project_elf_src_esp32p4.c	c49d915960044b64
+51	63	1778571949780903502	esp-idf/esp_system/ld/sections.ld.in	42afbfcf605f44e4
+51	63	1778571949780903502	/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/esp-idf/esp_system/ld/sections.ld.in	42afbfcf605f44e4
+50	63	1778571949782308434	esp-idf/esp_system/ld/memory.ld	3d8126e8d2207267
+50	63	1778571949782308434	/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/esp-idf/esp_system/ld/memory.ld	3d8126e8d2207267
+51	88	1778571949803327851	lua_module_builder_builtin_lua_modules_skill_generate.stamp	15fe27c0bd17d3b2
+51	88	1778571949803327851	/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/lua_module_builder_builtin_lua_modules_skill_generate.stamp	15fe27c0bd17d3b2
+52	98	1778571949812840880	lua_module_builder_builtin_scripts_sync.stamp	47cc998554623bc5
+52	98	1778571949812840880	/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/lua_module_builder_builtin_scripts_sync.stamp	47cc998554623bc5
+52	99	1778571949813924498	lua_module_builder_docs_sync.stamp	88d22f6d8750c7ce
+52	99	1778571949813924498	/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/lua_module_builder_docs_sync.stamp	88d22f6d8750c7ce
+51	106	1778571949821612715	/home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_boards/skills/board_hardware_info/SKILL.md	fb3fc01c80d9d911
+52	150	1778571949857556627	emote_assets.bin	94b6942fa01485d2
+52	150	1778571949857556627	/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/emote_assets.bin	94b6942fa01485d2

@@ -1,0 +1,21 @@
+{
+  "synced_files": [
+    "lib/arg_schema.lua",
+    "lib/arg_schema.md",
+    "lib/ssd1306.lua",
+    "lib/ssd1306.md",
+    "test/adc_read.lua",
+    "test/button_events.lua",
+    "test/capability_call.lua",
+    "test/display_shapes.lua",
+    "test/i2c_scan_rw.lua",
+    "test/led_strip_rainbow.lua",
+    "test/llm_analyze_trigger.lua",
+    "test/mcpwm_12ch.lua",
+    "test/servo_sweep.lua",
+    "test/ssd1306_test.lua",
+    "test/system_info.lua",
+    "test/touch_read.lua",
+    "test/uart_at.lua"
+  ]
+}

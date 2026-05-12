@@ -1,0 +1,16 @@
+{
+  "idf.currentSetup": "/home/nini/.espressif/v5.5.4/esp-idf",
+  "idf.port": "/dev/ttyACM0",
+  "idf.openOcdConfigs": [
+    "board/esp32p4-builtin.cfg"
+  ],
+  "idf.customExtraVars": {
+    "IDF_TARGET": "esp32p4"
+  },
+  "clangd.path": "/home/nini/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build"
+  ]
+}

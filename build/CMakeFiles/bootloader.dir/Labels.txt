@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/CMakeFiles/bootloader
+/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/CMakeFiles/bootloader.rule
+/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/CMakeFiles/bootloader-complete.rule
+/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

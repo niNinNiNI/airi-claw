@@ -1,0 +1,21 @@
+{
+  "synced_files": [
+    "lua_driver_adc.md",
+    "lua_driver_gpio.md",
+    "lua_driver_i2c.md",
+    "lua_driver_mcpwm.md",
+    "lua_driver_touch.md",
+    "lua_driver_uart.md",
+    "lua_module_board_manager.md",
+    "lua_module_button.md",
+    "lua_module_call_capability.md",
+    "lua_module_delay.md",
+    "lua_module_display.md",
+    "lua_module_esp_heap.md",
+    "lua_module_event_publisher.md",
+    "lua_module_led_strip.md",
+    "lua_module_ssd1306.md",
+    "lua_module_storage.md",
+    "lua_module_system.md"
+  ]
+}
