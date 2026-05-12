@@ -118,6 +118,35 @@ esp_err_t emote_set_label_clock(emote_handle_t handle);
 esp_err_t emote_set_bat_status(emote_handle_t handle);
 
 /**
+ * @brief  Update battery percentage label only
+ *
+ * @param[in]  handle  Emote handle
+ *
+ * @return
+ *       - ESP_OK  On success
+ *       - Other   Error code on failure
+ */
+esp_err_t emote_set_bat_status_label(emote_handle_t handle);
+
+/**
+ * @brief  Load charge icon asset and set visibility from handle->bat_is_charging
+ *
+ * @param[in]  handle  Emote handle
+ *
+ * @return
+ *       - ESP_OK  On success
+ *       - Other   Error code on failure
+ */
+esp_err_t emote_set_bat_charge_icon(emote_handle_t handle);
+
+/**
+ * @brief  Set charge icon visible from handle->bat_is_charging only (no asset reload). For status timer on idle UI.
+ *
+ * @param[in]  handle  Emote handle
+ */
+void emote_set_bat_status_charge(emote_handle_t handle);
+
+/**
  * @brief  Create object by name
  *
  * @param[in]  handle  Emote handle

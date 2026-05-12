@@ -235,7 +235,8 @@ static void emote_status_timer_callback(void *data)
     emote_handle_t handle = (emote_handle_t)data;
     if (handle) {
         emote_set_label_clock(handle);
-        emote_set_bat_status(handle);
+        emote_set_bat_status_label(handle);
+        emote_set_bat_status_charge(handle);
     }
 }
 

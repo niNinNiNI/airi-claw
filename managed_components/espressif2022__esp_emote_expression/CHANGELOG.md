@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2026-05-11
+
+- Fix battery status timer to update only the label, avoiding asset reads from the render task.
+- Update battery event handling to refresh battery icons immediately after parsing battery state.
+
 ## [1.0.0] - 2026-02-13
 
 - Add unload interface

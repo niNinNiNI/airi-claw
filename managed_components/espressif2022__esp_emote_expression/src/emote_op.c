@@ -420,9 +420,7 @@ esp_err_t emote_set_bat_status(emote_handle_t handle)
     ESP_GOTO_ON_FALSE(handle, ESP_ERR_INVALID_ARG, error, TAG, "Invalid parameters");
 
     if (handle->bat_percent >= 0) {
-        char percent_str[16];
-        snprintf(percent_str, sizeof(percent_str), "%d", handle->bat_percent);
-        ret = emote_set_label_text(handle, EMOTE_DEF_OBJ_LABEL_BATTERY, percent_str);
+        ret = emote_set_bat_status_label(handle);
         if (ret != ESP_OK) {
             ESP_LOGW(TAG, "Failed to set battery label");
         }
@@ -432,12 +430,60 @@ esp_err_t emote_set_bat_status(emote_handle_t handle)
             ESP_LOGW(TAG, "Failed to set battery background icon");
         }
 
-        ret = emote_set_icon_image(handle, EMOTE_DEF_OBJ_ICON_CHARGE, EMOTE_ICON_BATTERY_CHARGE, handle->bat_is_charging);
+        ret = emote_set_bat_charge_icon(handle);
         if (ret != ESP_OK) {
             ESP_LOGW(TAG, "Failed to set battery charge icon");
         }
     }
     return ESP_OK;
+
+error:
+    return ret;
+}
+
+esp_err_t emote_set_bat_charge_icon(emote_handle_t handle)
+{
+    esp_err_t ret = ESP_OK;
+
+    ESP_GOTO_ON_FALSE(handle, ESP_ERR_INVALID_ARG, error, TAG, "Invalid parameters");
+
+    if (handle->bat_percent < 0) {
+        return ESP_OK;
+    }
+
+    ret = emote_set_icon_image(handle, EMOTE_DEF_OBJ_ICON_CHARGE, EMOTE_ICON_BATTERY_CHARGE, handle->bat_is_charging);
+
+error:
+    return ret;
+}
+
+void emote_set_bat_status_charge(emote_handle_t handle)
+{
+    if (!handle || handle->bat_percent < 0) {
+        return;
+    }
+
+    gfx_obj_t *obj = handle->def_objects[EMOTE_DEF_OBJ_ICON_CHARGE].obj;
+    if (!obj) {
+        return;
+    }
+
+    gfx_emote_lock(handle->gfx_handle);
+    gfx_obj_set_visible(obj, handle->bat_is_charging);
+    gfx_emote_unlock(handle->gfx_handle);
+}
+
+esp_err_t emote_set_bat_status_label(emote_handle_t handle)
+{
+    esp_err_t ret = ESP_OK;
+
+    ESP_GOTO_ON_FALSE(handle, ESP_ERR_INVALID_ARG, error, TAG, "Invalid parameters");
+
+    if (handle->bat_percent >= 0) {
+        char percent_str[16];
+        snprintf(percent_str, sizeof(percent_str), "%d", handle->bat_percent);
+        ret = emote_set_label_text(handle, EMOTE_DEF_OBJ_LABEL_BATTERY, percent_str);
+    }
 
 error:
     return ret;

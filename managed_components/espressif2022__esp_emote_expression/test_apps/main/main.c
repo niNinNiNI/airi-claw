@@ -204,8 +204,9 @@ static void test_emote_basic(emote_handle_t handle)
     emote_set_qrcode_data(handle, "https://www.esp32.com");
     vTaskDelay(pdMS_TO_TICKS(3 * 1000));
 
-    emote_set_event_msg(handle, EMOTE_MGR_EVT_IDLE, NULL);
     emote_set_event_msg(handle, EMOTE_MGR_EVT_BAT, "0,50");
+    vTaskDelay(pdMS_TO_TICKS(2 * 1000));
+    emote_set_event_msg(handle, EMOTE_MGR_EVT_IDLE, NULL);
     vTaskDelay(pdMS_TO_TICKS(2 * 1000));
 
     emote_set_event_msg(handle, EMOTE_MGR_EVT_BAT, "1,100");

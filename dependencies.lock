@@ -517,7 +517,7 @@ dependencies:
       type: service
     version: 2.12.3
   espressif/esp_lcd_st7701:
-    component_hash: d412b3a8704b32b6025aeabf6b3d769eefb9aefb2a3c07baf7cf4a13874c43f0
+    component_hash: 0b11e8733e51e12da83003b9d475777eaf47bfbdce01379879bd2504d14f4f83
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -525,14 +525,14 @@ dependencies:
       version: 0.*
     - name: idf
       require: private
-      version: '>=5.4'
+      version: '>5.0.4,!=5.1.1'
     source:
       registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32s3
     - esp32p4
-    version: 2.0.2~1
+    version: 1.1.5
   espressif/esp_lcd_touch:
     component_hash: 3f85a7d95af876f1a6ecca8eb90a81614890d0f03a038390804e5a77e2caf862
     dependencies:
@@ -737,7 +737,7 @@ dependencies:
       type: service
     version: 0.1.2
   espressif2022/esp_emote_expression:
-    component_hash: 3c7766add4a8500c0f7cbcb41f85b29f0d8c9ce76ac1be63dc75adb9e9f5569c
+    component_hash: 2454f176798d80bfe4220015608cbca9341b6671bcada1305d1fac7a81c40237
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -754,14 +754,14 @@ dependencies:
     - name: espressif2022/esp_emote_gfx
       registry_url: https://components.espressif.com
       require: public
-      version: ^3.0.0
+      version: <=3.0.5
     - name: idf
       require: private
       version: '>=5.0'
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.0.0
+    version: 1.0.1
   espressif2022/esp_emote_gfx:
     component_hash: 2aca001668978e0f4a16f84b2a4b811565fb0710b8391aea77d5fd4560a5269a
     dependencies:
