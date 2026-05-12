@@ -9,16 +9,16 @@
 
   --color-border-subtle: rgba(255, 255, 255, 0.1);
   --color-border-strong: rgba(255, 255, 255, 0.2);
-  --color-border-accent: rgba(232, 54, 45, 0.15);
+  --color-border-accent: rgba(59, 130, 246, 0.15);
 
   --color-text-primary: #e8eaf0;
   --color-text-secondary: #9aa0b0;
   --color-text-muted: #565b6b;
   --color-text-on-accent: #ffffff;
 
-  --color-accent: #e8362d;
-  --color-accent-soft: #d32f2f;
-  --color-accent-dim: rgba(232, 54, 45, 0.08);
+  --color-accent: #3b82f6;
+  --color-accent-soft: #2563eb;
+  --color-accent-dim: rgba(59, 130, 246, 0.08);
 
   --color-green: #68d391;
   --color-green-dim: rgba(104, 211, 145, 0.15);
@@ -84,7 +84,7 @@
   select:focus,
   textarea:focus {
     outline: none;
-    border-color: rgba(232, 54, 45, 0.4);
+    border-color: rgba(59, 130, 246, 0.4);
   }
 
   input::placeholder,

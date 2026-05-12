@@ -1,0 +1,13 @@
+dependencies:
+  espressif/esp_audio_codec:
+    public: true
+  espressif/esp_codec_dev:
+    version: "*"
+    public: true
+  esp_extractor:
+    path: ../esp_extractor
+  display_arbiter:
+    path: ../../../../components/common/display_arbiter
+  esp_board_manager:
+    version: "*"
+    public: true

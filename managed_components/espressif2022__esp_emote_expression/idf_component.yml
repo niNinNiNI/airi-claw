@@ -9,7 +9,7 @@ dependencies:
     version: ^0.1.0
   espressif2022/esp_emote_gfx:
     public: true
-    version: <=3.0.5
+    version: ^3.0.0
   idf:
     version: '>=5.0'
 description: ESP-Brookesia-Expression-Emote is a component for managing expression
@@ -19,7 +19,7 @@ issues: https://github.com/espressif2022/esp_emote_expression/issues
 license: Apache-2.0
 repository: git://github.com/espressif2022/esp_emote_expression.git
 repository_info:
-  commit_sha: 0e5279479fc52815d993ea29d0f091575cb8cf99
+  commit_sha: fbbe2264a944d73a11b9870a5cb3272b077b3226
   path: .
 url: https://github.com/espressif2022/esp_emote_expression
-version: 1.0.1
+version: 1.0.0

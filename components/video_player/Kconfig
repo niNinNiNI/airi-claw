@@ -1,0 +1,21 @@
+menu "Video Player Configuration"
+    config VIDEO_PLAYER_ENABLE
+        bool "Enable SD Card Video Player"
+        default y
+        help
+            Enable boot-time SD card video scanning and MP4/AVI looping playback.
+
+    config VIDEO_PLAYER_AUDIO_ENABLE
+        bool "Enable audio playback for videos"
+        default y
+        depends on VIDEO_PLAYER_ENABLE && ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT
+        help
+            Enable audio track playback for video files via ES8311 codec.
+
+    config VIDEO_PLAYER_SYNC_ENABLED
+        bool "Enable Audio-Video Synchronization"
+        default y
+        depends on VIDEO_PLAYER_AUDIO_ENABLE
+        help
+            Enable synchronization between audio and video playback.
+endmenu

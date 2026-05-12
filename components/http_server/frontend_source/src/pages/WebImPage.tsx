@@ -16,7 +16,7 @@ import { Banner } from '../components/ui/Banner';
 import { t } from '../i18n';
 import { pushToast } from '../state/toast';
 
-const LS_CHAT_ID = 'esp-claw-webim-chat-id';
+const LS_CHAT_ID = 'airi-webim-chat-id';
 
 function loadOrCreateChatId(): string {
   try {

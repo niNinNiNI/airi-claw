@@ -40,7 +40,7 @@ export function LanguageSwitcher() {
   return (
     <div class="flex items-center gap-2">
       <a
-        href={`https://esp-claw.com/${localePath()}/`}
+        href={`https://airi.dev/${localePath()}/`}
         target="_blank"
         rel="noreferrer"
         class={iconButtonClass}
@@ -50,7 +50,7 @@ export function LanguageSwitcher() {
         <House class="w-4 h-4" />
       </a>
       <a
-        href={`https://esp-claw.com/${localePath()}/tutorial`}
+        href={`https://airi.dev/${localePath()}/tutorial`}
         target="_blank"
         rel="noreferrer"
         class={iconButtonClass}
@@ -60,7 +60,7 @@ export function LanguageSwitcher() {
         <Book class="w-4 h-4" />
       </a>
       <a
-        href="https://github.com/espressif/esp-claw"
+        href="https://github.com/espressif/airi"
         target="_blank"
         rel="noreferrer"
         class={iconButtonClass}

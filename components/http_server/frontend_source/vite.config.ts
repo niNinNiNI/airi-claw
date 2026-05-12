@@ -14,8 +14,8 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api': 'http://esp-claw.local/',
-      '/files': 'http://esp-claw.local/',
+      '/api': 'http://airi.local/',
+      '/files': 'http://airi.local/',
     },
   },
   build: {

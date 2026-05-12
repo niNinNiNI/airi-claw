@@ -1,7 +1,7 @@
 import type { Dict } from './en';
 
 export const zhCn: Dict = {
-  docTitle: 'ESP-Claw 设置',
+  docTitle: 'AIRI 设置',
   pageTitle: '设备设置',
   pageSubtitle: '查看系统运作基本信息与状态',
 
@@ -28,7 +28,7 @@ export const zhCn: Dict = {
   navFiles: '文件管理',
   navWebIm: '在线聊天',
 
-  webimDesc: '通过 WebSocket 与 ESP-Claw 实时互动。',
+  webimDesc: '通过 WebSocket 与 AIRI 实时互动。',
   webimSend: '发送',
   webimOnline: '在线',
   webimPlaceholder: '输入消息…',
@@ -163,7 +163,7 @@ export const zhCn: Dict = {
 
   sectionSearch: '搜索（可选）',
   searchNote:
-    '如填写，ESP-Claw 可在运行中检索在线资源。提示：系统自带的天气 Skill 也依赖在线搜索功能。',
+    '如填写，AIRI 可在运行中检索在线资源。提示：系统自带的天气 Skill 也依赖在线搜索功能。',
   searchBraveKey: 'Brave Search API Key',
   searchTavilyKey: 'Tavily API Key',
 

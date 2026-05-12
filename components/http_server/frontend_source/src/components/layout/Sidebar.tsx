@@ -104,7 +104,7 @@ type SidebarProps = {
   onCloseMobile?: () => void;
 };
 
-const EXPANDED_STORAGE_KEY = 'esp-claw-sidebar-expanded';
+const EXPANDED_STORAGE_KEY = 'airi-sidebar-expanded';
 
 function readExpanded(): Set<string> {
   try {
@@ -280,7 +280,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               when={isMobileDrawer()}
               fallback={
                 <span class="block text-[0.7rem] font-bold text-[var(--color-text-muted)] truncate">
-                  ESP-Claw Web Config
+                  AIRI Web Config
                 </span>
               }
             >

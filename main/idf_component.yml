@@ -41,5 +41,8 @@ dependencies:
   settings:
     path: ../../../components/common/settings
 
+  video_player:
+    path: ../components/video_player
+
   wifi_manager:
     path: ../../../components/common/wifi_manager

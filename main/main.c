@@ -25,6 +25,7 @@
 #include "cap_im_wechat.h"
 #endif
 #include "app_config.h"
+#include "video_player.h"
 
 #define APP_FATFS_PARTITION_LABEL "storage"
 #define APP_ENABLE_MEM_LOG        (0)
@@ -334,6 +335,8 @@ void app_main(void)
     init_timezone(app_config_get_timezone(s_config)); // no need to check error
     ESP_ERROR_CHECK(esp_board_manager_init());
     ESP_ERROR_CHECK(app_claw_ui_start());
+    video_player_init();
+    video_player_start();
     ESP_ERROR_CHECK(init_fatfs());
     ESP_ERROR_CHECK(wifi_manager_init());
     ESP_ERROR_CHECK(http_server_init(&(http_server_config_t) {

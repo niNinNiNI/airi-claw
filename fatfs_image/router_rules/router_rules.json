@@ -44,7 +44,7 @@
         "input": {
           "channel": "{{event.source_channel}}",
           "chat_id": "{{event.chat_id}}",
-          "message": "🦞 ESP-Claw is snapping on it..."
+          "message": "✨ AIRI 正在处理..."
         }
       }
     ]

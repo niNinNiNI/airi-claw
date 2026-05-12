@@ -382,6 +382,12 @@ dependencies:
       path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/emote
       type: local
     version: '*'
+  esp_extractor:
+    dependencies: []
+    source:
+      path: /home/nini/esp-claw-master_1/esp-claw-master/application/edge_agent/components/esp_extractor
+      type: local
+    version: '*'
   esp_painter:
     dependencies: []
     source:
@@ -426,6 +432,26 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 1.1.5
+  espressif/esp-dsp:
+    component_hash: ed9ac175b14e0414399a2b33c525579414b5bad19a2a67b12ea212def96f9a98
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.2'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.8.2
+  espressif/esp_audio_codec:
+    component_hash: 16e2880dbdd5a72264051f750f33a6e5a38fd25621c83e3a32a85a152d2d2643
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 2.5.0
   espressif/esp_board_manager:
     component_hash: e6b52add83cb1e83fad6ba52fd526f1e1797402b5550a44d6ef6e0a536a9bc10
     dependencies:
@@ -477,7 +503,7 @@ dependencies:
       require: private
       version: '>=4.0'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.5.9
   espressif/esp_hosted:
@@ -491,7 +517,7 @@ dependencies:
       type: service
     version: 2.12.3
   espressif/esp_lcd_st7701:
-    component_hash: 0b11e8733e51e12da83003b9d475777eaf47bfbdce01379879bd2504d14f4f83
+    component_hash: d412b3a8704b32b6025aeabf6b3d769eefb9aefb2a3c07baf7cf4a13874c43f0
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -499,14 +525,14 @@ dependencies:
       version: 0.*
     - name: idf
       require: private
-      version: '>5.0.4,!=5.1.1'
+      version: '>=5.4'
     source:
       registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32s3
     - esp32p4
-    version: 1.1.5
+    version: 2.0.2~1
   espressif/esp_lcd_touch:
     component_hash: 3f85a7d95af876f1a6ecca8eb90a81614890d0f03a038390804e5a77e2caf862
     dependencies:
@@ -585,7 +611,7 @@ dependencies:
       type: service
     version: 1.7.0
   espressif/esp_wifi_remote:
-    component_hash: 4ad3e3ec9ce7d26fde1ccd2b550b88952cc96ac089a06e0247f69d005cc31e1f
+    component_hash: 97b683db5244f4d224997a9d00d09a8f0e13ea0cf39566e1f3b3a11d73f68ee0
     dependencies:
     - name: espressif/esp_hosted
       registry_url: https://components.espressif.com
@@ -603,7 +629,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.5.1
+    version: 1.5.2
   espressif/freetype:
     component_hash: a4169cdd22b3572342b2d640d7082405b8895e3214539283601c03412589b65d
     dependencies:
@@ -711,7 +737,7 @@ dependencies:
       type: service
     version: 0.1.2
   espressif2022/esp_emote_expression:
-    component_hash: 2454f176798d80bfe4220015608cbca9341b6671bcada1305d1fac7a81c40237
+    component_hash: 3c7766add4a8500c0f7cbcb41f85b29f0d8c9ce76ac1be63dc75adb9e9f5569c
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -728,14 +754,14 @@ dependencies:
     - name: espressif2022/esp_emote_gfx
       registry_url: https://components.espressif.com
       require: public
-      version: <=3.0.5
+      version: ^3.0.0
     - name: idf
       require: private
       version: '>=5.0'
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.0.1
+    version: 1.0.0
   espressif2022/esp_emote_gfx:
     component_hash: 2aca001668978e0f4a16f84b2a4b811565fb0710b8391aea77d5fd4560a5269a
     dependencies:
@@ -846,6 +872,16 @@ dependencies:
       path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_driver_uart
       type: local
     version: '*'
+  lua_module_audio:
+    dependencies:
+    - name: espressif/esp_codec_dev
+      version: '*'
+    - name: espressif/esp-dsp
+      version: '*'
+    source:
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_audio
+      type: local
+    version: '*'
   lua_module_board_manager:
     dependencies: []
     source:
@@ -949,6 +985,24 @@ dependencies:
       path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/skill_builder
       type: local
     version: '*'
+  video_player:
+    dependencies:
+    - name: espressif/esp_audio_codec
+      public: true
+    - name: espressif/esp_codec_dev
+      public: true
+      version: '*'
+    - name: esp_extractor
+      path: ../esp_extractor
+    - name: display_arbiter
+      path: ../../../../components/common/display_arbiter
+    - name: espressif/esp_board_manager
+      public: true
+      version: '*'
+    source:
+      path: /home/nini/esp-claw-master_1/esp-claw-master/application/edge_agent/components/video_player
+      type: local
+    version: '*'
   wifi_manager:
     dependencies: []
     source:
@@ -960,8 +1014,12 @@ direct_dependencies:
 - app_config
 - cap_im_local
 - captive_dns
+- display_arbiter
 - emote
+- esp_extractor
+- espressif/esp_audio_codec
 - espressif/esp_board_manager
+- espressif/esp_codec_dev
 - espressif/esp_hosted
 - espressif/esp_lcd_st7701
 - espressif/esp_lcd_touch
@@ -972,7 +1030,8 @@ direct_dependencies:
 - http_reuse
 - http_server
 - settings
+- video_player
 - wifi_manager
-manifest_hash: e4d1dbc55836f2d8c9149567b64842c97dc5731ad489f44e670f60227e893e1d
+manifest_hash: 6acdd572627f02bde9139854be0dcd528f5c41e3ec4f33da8ccfe1ddc9103311
 target: esp32p4
 version: 2.0.0
