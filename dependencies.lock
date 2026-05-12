@@ -223,31 +223,31 @@ dependencies:
       - if: $CONFIG{APP_CLAW_CAP_LUA} == True
       - if: $CONFIG{APP_CLAW_LUA_MODULE_SYSTEM} == True
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/common/app_claw
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/app_claw
       type: local
     version: '*'
   app_config:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/components/app_config
+      path: /home/nini/esp-claw-master_1/esp-claw-master/application/edge_agent/components/app_config
       type: local
     version: '*'
   cap_boards:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_boards
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_boards
       type: local
     version: '*'
   cap_files:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_files
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_files
       type: local
     version: '*'
   cap_im_local:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_im_local
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_im_local
       type: local
     version: '*'
   cap_im_platform:
@@ -255,13 +255,13 @@ dependencies:
     - name: espressif/esp_websocket_client
       version: ^1.4.0
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_im_platform
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_im_platform
       type: local
     version: '*'
   cap_llm_inspect:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_llm_inspect
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_llm_inspect
       type: local
     version: '*'
   cap_lua:
@@ -269,7 +269,7 @@ dependencies:
     - name: georgik/lua
       version: ^5.5.0~7
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_lua
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_lua
       type: local
     version: '*'
   cap_mcp_client:
@@ -277,7 +277,7 @@ dependencies:
     - name: espressif/mdns
       version: ^1.10.1
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_mcp_client
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_mcp_client
       type: local
     version: '*'
   cap_mcp_server:
@@ -287,91 +287,91 @@ dependencies:
     - name: espressif/mcp-c-sdk
       version: ^1.0.0
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_mcp_server
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_mcp_server
       type: local
     version: '*'
   cap_router_mgr:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_router_mgr
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_router_mgr
       type: local
     version: '*'
   cap_scheduler:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_scheduler
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_scheduler
       type: local
     version: '*'
   cap_session_mgr:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_session_mgr
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_session_mgr
       type: local
     version: '*'
   cap_skill_mgr:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_skill_mgr
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_skill_mgr
       type: local
     version: '*'
   cap_system:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_system
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_system
       type: local
     version: '*'
   cap_time:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_time
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_time
       type: local
     version: '*'
   cap_web_search:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_capabilities/cap_web_search
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_web_search
       type: local
     version: '*'
   captive_dns:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/common/captive_dns
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/captive_dns
       type: local
     version: '*'
   claw_cap:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_modules/claw_cap
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_modules/claw_cap
       type: local
     version: '*'
   claw_core:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_modules/claw_core
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_modules/claw_core
       type: local
     version: '*'
   claw_event_router:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_modules/claw_event_router
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_modules/claw_event_router
       type: local
     version: '*'
   claw_memory:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_modules/claw_memory
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_modules/claw_memory
       type: local
     version: '*'
   claw_skill:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/claw_modules/claw_skill
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_modules/claw_skill
       type: local
     version: '*'
   display_arbiter:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/common/display_arbiter
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/display_arbiter
       type: local
     version: '*'
   emote:
@@ -379,13 +379,13 @@ dependencies:
     - name: display_arbiter
       path: ../display_arbiter
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/common/emote
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/emote
       type: local
     version: '*'
   esp_painter:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/common/esp_painter
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/esp_painter
       type: local
     version: '*'
   espressif/button:
@@ -783,7 +783,7 @@ dependencies:
   http_reuse:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/common/http_reuse
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/http_reuse
       type: local
     version: '*'
   http_server:
@@ -791,7 +791,7 @@ dependencies:
     - name: cap_im_local
       path: ../../../../components/claw_capabilities/cap_im_local
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/components/http_server
+      path: /home/nini/esp-claw-master_1/esp-claw-master/application/edge_agent/components/http_server
       type: local
     version: '*'
   idf:
@@ -811,13 +811,13 @@ dependencies:
   lua_driver_adc:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_driver_adc
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_driver_adc
       type: local
     version: '*'
   lua_driver_gpio:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_driver_gpio
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_driver_gpio
       type: local
     version: '*'
   lua_driver_i2c:
@@ -825,37 +825,37 @@ dependencies:
     - name: espressif/i2c_bus
       version: ^1.5.1
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_driver_i2c
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_driver_i2c
       type: local
     version: '*'
   lua_driver_mcpwm:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_driver_mcpwm
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_driver_mcpwm
       type: local
     version: '*'
   lua_driver_touch:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_driver_touch
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_driver_touch
       type: local
     version: '*'
   lua_driver_uart:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_driver_uart
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_driver_uart
       type: local
     version: '*'
   lua_module_board_manager:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_board_manager
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_board_manager
       type: local
     version: '*'
   lua_module_builder:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/common/lua_module_builder
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/lua_module_builder
       type: local
     version: '*'
   lua_module_button:
@@ -863,19 +863,19 @@ dependencies:
     - name: espressif/button
       version: '*'
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_button
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_button
       type: local
     version: '*'
   lua_module_call_capability:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_call_capability
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_call_capability
       type: local
     version: '*'
   lua_module_delay:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_delay
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_delay
       type: local
     version: '*'
   lua_module_display:
@@ -887,19 +887,19 @@ dependencies:
     - name: display_arbiter
       path: ../../common/display_arbiter
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_display
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display
       type: local
     version: '*'
   lua_module_esp_heap:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_esp_heap
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_esp_heap
       type: local
     version: '*'
   lua_module_event_publisher:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_event_publisher
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_event_publisher
       type: local
     version: '*'
   lua_module_led_strip:
@@ -907,7 +907,7 @@ dependencies:
     - name: espressif/led_strip
       version: ^3.0.3
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_led_strip
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_led_strip
       type: local
     version: '*'
   lua_module_ssd1306:
@@ -915,19 +915,19 @@ dependencies:
     - name: lua_driver_i2c
       path: ../lua_driver_i2c
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_ssd1306
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_ssd1306
       type: local
     version: '*'
   lua_module_storage:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_storage
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_storage
       type: local
     version: '*'
   lua_module_system:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/lua_modules/lua_module_system
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_system
       type: local
     version: '*'
   lvgl/lvgl:
@@ -940,19 +940,19 @@ dependencies:
   settings:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/common/settings
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/settings
       type: local
     version: '*'
   skill_builder:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/common/skill_builder
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/skill_builder
       type: local
     version: '*'
   wifi_manager:
     dependencies: []
     source:
-      path: /home/nini/esp-claw-master (1)/esp-claw-master/components/common/wifi_manager
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/wifi_manager
       type: local
     version: '*'
 direct_dependencies:

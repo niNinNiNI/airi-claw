@@ -1,3 +1,0 @@
--mabi=ilp32f
--march=rv32imafc_zicsr_zifencei_xesploop_xespv
--fno-rtti

@@ -12,5 +12,6 @@
     "--background-index",
     "--query-driver=**",
     "--compile-commands-dir=/home/nini/esp-claw-master (1)/esp-claw-master/application/edge_agent/build"
-  ]
+  ],
+  "idf.flashType": "UART"
 }
