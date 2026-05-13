@@ -298,6 +298,9 @@ static esp_err_t register_all_extractors(void)
 {
     esp_err_t ret;
 
+    /* Disable verbose MP4 parse log BEFORE registration to prevent any logs during parsing */
+    esp_mp4_extractor_show_parse_log(false);
+
     ret = esp_mp4_extractor_register();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to register MP4 extractor: %d", ret);

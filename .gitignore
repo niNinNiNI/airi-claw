@@ -3,3 +3,10 @@ fatfs_image/scripts/builtin
 fatfs_image/scripts/docs
 
 build/
+
+# 私密配置文件（包含API key、密码等敏感信息）
+配置信息.md
+语音模块相关信息/火山应用信息.md
+fatfs_image/memory/identity.md
+fatfs_image/memory/soul.md
+fatfs_image/memory/MEMORY.md

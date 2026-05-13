@@ -25,6 +25,7 @@ peripherals:
       slot_mode: "I2S_SLOT_MODE_STEREO"
       slot_mask: "I2S_STD_SLOT_BOTH"
       ws_width: 16
+      left_align: false      # ES8311 requires I2S Philips format (not left-aligned/DSP)
       pins:
         mclk: 13
         bclk: 12

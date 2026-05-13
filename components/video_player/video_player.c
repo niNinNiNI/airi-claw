@@ -150,9 +150,9 @@ static void video_task(void *arg)
 
     ESP_LOGD(TAG, "Video task started");
 
-    while (s_running) {
-        display_arbiter_acquire(DISPLAY_ARBITER_OWNER_VIDEO);
+    display_arbiter_acquire(DISPLAY_ARBITER_OWNER_VIDEO);
 
+    while (s_running && display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
         const char *current_file = s_playlist[s_current_index];
         total_play_count++;
 
@@ -184,7 +184,7 @@ static void video_task(void *arg)
         uint32_t stable_count = 0;
         uint32_t last_frames = 0;
 
-        while (s_running) {
+        while (s_running && display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
             bool eos = false;
             ret = app_stream_adapter_is_eos(s_stream_adapter, &eos);
 
