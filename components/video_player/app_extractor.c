@@ -789,8 +789,8 @@ static esp_err_t get_stream_info(app_extractor_t *extractor)
         return ret;
     }
 
-    // Get audio stream info if available
-    if (audio_num > 0) {
+    // Skip audio stream parsing when audio device is not available
+    if (audio_num > 0 && extractor->audio_dev != NULL) {
         ret = esp_extractor_get_stream_info(extractor->extractor,
                                             EXTRACTOR_STREAM_TYPE_AUDIO, 0, &stream_info);
         if (ret != ESP_OK) {
@@ -859,16 +859,21 @@ esp_err_t app_extractor_init(app_extractor_frame_cb_t frame_cb,
 
     extractor->audio_dev = audio_dev;
 
-    // Initialize A/V sync if enabled
+    // Initialize A/V sync only when audio device is available
+    if (audio_dev) {
 #if CONFIG_VIDEO_PLAYER_SYNC_ENABLED
-    extractor->sync_enabled = true;
-    extractor->sync_threshold_ms = HDMI_SYNC_THRESHOLD_MS;
-    extractor->base_time = esp_timer_get_time() / 1000;
-    extractor->sync_mutex = xSemaphoreCreateMutex();
+        extractor->sync_enabled = true;
+        extractor->sync_threshold_ms = HDMI_SYNC_THRESHOLD_MS;
+        extractor->base_time = esp_timer_get_time() / 1000;
+        extractor->sync_mutex = xSemaphoreCreateMutex();
 #else
-    extractor->sync_enabled = false;
-    extractor->sync_mutex = NULL;
+        extractor->sync_enabled = false;
+        extractor->sync_mutex = NULL;
 #endif
+    } else {
+        extractor->sync_enabled = false;
+        extractor->sync_mutex = NULL;
+    }
 
     extractor->audio_decoder = NULL;
     extractor->audio_decoder_open = false;
