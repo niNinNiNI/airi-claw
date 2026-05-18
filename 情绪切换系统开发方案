@@ -1,0 +1,422 @@
+# 情绪视频切换系统 — 开发方案
+
+## Context
+
+当前视频播放模块仅支持 SD 卡根目录自动扫描 + 顺序轮播，无法根据语境动态切换视频。用户有 10 个情绪视频文件（m01~m10，位于 `Hiyori/videos/`，MJPEG 480×800 15fps），需要在运行时根据 AI 对话语境或其他信号源切换到对应的情绪视频。
+
+核心问题：**视频播放器缺少"指定播放"能力，系统缺少"情绪→视频"的映射和切换机制**。
+
+---
+
+## 架构概览
+
+```
+┌──────────────────────────────────────────────────┐
+│                  app_claw (LLM Agent)             │
+│  通过 claw_core_add_context_provider 提供能力      │
+└──────────────────────┬───────────────────────────┘
+                       │ 情绪命令
+┌──────────────────────▼───────────────────────────┐
+│           emotion_video_controller (新模块)        │
+│  - 情绪状态枚举 (10种)                            │
+│  - 情绪→视频文件映射表                            │
+│  - 切换逻辑：停止当前 → 启动新情绪视频             │
+│  - 过渡效果：PPA blend 淡入淡出                   │
+│  - HTTP API 端点：POST /api/emotion               │
+│  - Lua 绑定：set_emotion("m03_calm")              │
+└──────────────────────┬───────────────────────────┘
+                       │ video_player API
+┌──────────────────────▼───────────────────────────┐
+│           video_player (扩展)                     │
+│  新增:                                            │
+│  - video_player_play_file(path, loop)             │
+│  - video_player_switch_to(path, transition)       │
+│  - video_player_get_current()                     │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
+## 实施步骤
+
+### Step 1: 扩展 video_player 公共 API
+
+**文件**: `video_player.h` / `video_player.c`
+
+新增三个函数：
+
+```c
+// 播放指定文件，loop=true 时单文件循环
+esp_err_t video_player_play_file(const char *filepath, bool loop);
+
+// 带过渡效果的切换（先 blend 到黑/新帧，再切文件）
+esp_err_t video_player_switch_to(const char *filepath);
+
+// 获取当前播放的文件路径
+const char *video_player_get_current(void);
+```
+
+**内部改动**:
+- 将 `s_playlist` 从数组扫描模式改为支持"单文件循环"模式
+- 添加 `s_single_file_loop` 标志位
+- `video_task` 中的 `next_file` 逻辑：单文件模式下 `s_current_index` 不回卷，重复播放同一文件
+- SD 卡扫描逻辑保留但不再自动启动轮播；`video_player_start()` 改为仅初始化不自动播放（或保留兼容）
+
+**文件变更**: `video_player.c` (~60行改动), `video_player.h` (~10行新增)
+
+---
+
+### Step 2: 创建 emotion_video_controller 模块
+
+**新文件**: `components/video_player/emotion_video_controller.h` / `.c`
+
+职责：情绪状态管理 + 视频切换控制
+
+```c
+// 情绪枚举（对应 Hiyori 10个视频）
+typedef enum {
+    EMOTION_IDLE_SHAKE   = 0,  // m01 - 待机摇晃
+    EMOTION_SWAY         = 1,  // m02 - 摇摆
+    EMOTION_CALM         = 2,  // m03 - 平静
+    EMOTION_WAVE         = 3,  // m04 - 挥手
+    EMOTION_TIRED        = 4,  // m05 - 疲倦
+    EMOTION_SLIGHT_SWAY  = 5,  // m06 - 轻微摇摆
+    EMOTION_BREATHING    = 6,  // m07 - 呼吸
+    EMOTION_HAND_MOVES   = 7,  // m08 - 手部动作
+    EMOTION_NOD          = 8,  // m09 - 点头
+    EMOTION_RELAXED      = 9,  // m10 - 放松
+    EMOTION_COUNT        = 10,
+} emotion_video_t;
+
+// 初始化：扫描视频目录，建立映射表
+esp_err_t emotion_video_controller_init(const char *video_dir);
+
+// 切换到指定情绪（内部调用 video_player_switch_to）
+esp_err_t emotion_video_set(emotion_video_t emotion);
+
+// 获取当前情绪
+emotion_video_t emotion_video_get_current(void);
+
+// 停止播放，释放显示给 emote
+esp_err_t emotion_video_stop(void);
+```
+
+**映射表**（编译期定义或运行时扫描）:
+
+| 枚举 | 目录名 | 文件名 |
+|------|--------|--------|
+| EMOTION_IDLE_SHAKE | m01_idle_shake | m01_idle_shake.mp4 |
+| EMOTION_SWAY | m02_sway | m02_sway.mp4 |
+| ... | ... | ... |
+
+**视频文件存放路径**: SD 卡 `/sdcard/videos/m01_idle_shake.mp4` ~ `m10_relaxed.mp4`
+
+**文件变更**: 新建 2 个文件 (~200行)
+
+---
+
+### Step 3: 添加过渡效果
+
+**文件**: `emotion_video_controller.c`（整合 ppa_blend）
+
+切换情绪时使用 PPA 硬件做短暂过渡：
+1. 捕获当前帧到临时缓冲
+2. 启动新视频的第一帧到另一缓冲
+3. 调用 `ppa_blend_rgb565()` 做 α 从 0→255 的淡入淡出（约 200ms，3-4 帧）
+4. 过渡完成后正常播放新视频
+
+**依赖**: 复用现有 `ppa_blend.c/h`（当前未被调用，代码已就绪）
+
+**文件变更**: `emotion_video_controller.c` 内 (~50行新增)
+
+---
+
+### Step 4: HTTP API 端点
+
+**文件**: `components/http_server/http_server_emotion_api.c`（新建）
+
+```
+POST /api/emotion
+  Body: {"emotion": "m03_calm"}  或  {"emotion": 2}
+
+GET /api/emotion
+  Response: {"current": "m03_calm", "index": 2, "playing": true}
+```
+
+在 `http_server.c` 中注册路由。复用现有 `http_server` 框架的 JSON 解析模式。
+
+**文件变更**: 新建 1 个文件 (~80行), `http_server.c` (~5行改动), `CMakeLists.txt` (~2行)
+
+---
+
+### Step 5: Lua 绑定
+
+**文件**: `components/video_player/lua_emotion_binding.c`（新建，或追加到现有 Lua 模块）
+
+注册 Lua 函数 `set_emotion(name)` 和 `get_emotion()`，使 Lua 脚本能控制情绪视频：
+
+```lua
+-- Lua 脚本示例
+set_emotion("m04_wave")  -- 切换到挥手
+local cur = get_emotion()  -- 返回 "m04_wave"
+```
+
+如果项目已有 Lua 模块注册机制，直接追加；否则新建独立模块。
+
+**文件变更**: 新建 1 个文件 (~60行)，或在现有 `cap_lua.c` 中追加 (~30行)
+
+---
+
+### Step 6: AI Agent 集成（语境→情绪）
+
+**文件**: `components/common/app_claw/app_claw.c`
+
+两种集成方式（选其一或并存）：
+
+**方案 A（推荐）**: 注册 Lua capability，LLM 通过 function calling 触发：
+- 在 `claw_core_add_context_provider` 中注册一个 `set_emotion` 工具
+- LLM 根据对话内容判断情绪，调用工具切换视频
+
+**方案 B**: 在 `app_claw` 上下文提供者中注入当前情绪状态信息，让 LLM 知晓可用的情绪列表。
+
+**实现**: 使用 `claw_cap_tools_provider` 注册工具，格式参考现有 capability 注册模式。
+
+**文件变更**: `app_claw.c` (~30行新增)
+
+---
+
+### Step 7: main.c 启动流程调整
+
+**文件**: `main/main.c`
+
+```c
+// 原流程:
+video_player_init();
+video_player_start();  // 自动扫描 SD 卡并轮播
+
+// 新流程:
+video_player_init();
+video_player_start();  // 初始化但不自动播放（或保留兼容）
+emotion_video_controller_init("/sdcard/videos");
+// 默认播放 idle 情绪
+emotion_video_set(EMOTION_IDLE_SHAKE);
+```
+
+**文件变更**: `main.c` (~8行改动)
+
+---
+
+### Step 8: CMake 构建更新
+
+**文件**: `components/video_player/CMakeLists.txt`
+
+```
+idf_component_register(
+    SRCS "video_player.c" "app_stream_adapter.c" "app_extractor.c"
+         "emotion_video_controller.c"   # 新增
+    INCLUDE_DIRS "include" "."
+    REQUIRES esp_audio_codec
+    PRIV_REQUIRES esp_board_manager esp_codec_dev display_arbiter esp_mm esp_driver_jpeg
+)
+```
+
+如果 Lua 绑定独立成文件也需要加入。
+
+---
+
+## 数据流总览
+
+```
+LLM对话 → 判断情绪 → function_call("set_emotion", {emotion: "m04_wave"})
+                          │
+                          ▼
+              emotion_video_controller
+                    │
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+   HTTP API    Lua 绑定    内部调用
+        │           │           │
+        └───────────┼───────────┘
+                    ▼
+        emotion_video_set(EMOTION_WAVE)
+                    │
+        ┌───────────┼───────────┐
+        ▼                        ▼
+  video_player_switch_to   ppa_blend (过渡)
+        │
+        ▼
+  app_stream_adapter_set_file("m04_wave.mp4")
+        │
+        ▼
+  app_stream_adapter_start() → extract_task 解码 → LCD 显示
+```
+
+---
+
+## 风险与注意事项
+
+1. **文件切换延迟**: MJPEG 文件解封装 + JPEG 解码初始化有 ~200-500ms 延迟，过渡动画可掩盖此延迟
+2. **SD 卡路径**: 视频文件需放在 `/sdcard/videos/` 目录下，需在部署时确认
+3. **内存**: 过渡效果需要额外 ~1 帧缓冲（已有双缓冲，可复用一个），不增加 PSRAM 压力
+4. **display_arbiter**: 切换过程中如果 emote 抢占了显示，视频帧会被静默丢弃（现有行为，无需改动）
+5. **音频**: 情绪视频可能无音频轨道，切换时需处理无音频的情况（已有 fallback 逻辑）
+
+---
+
+## 文件改动汇总
+
+| 文件 | 操作 | 估计行数 |
+|------|------|----------|
+| `video_player.h` | 修改 | +10 |
+| `video_player.c` | 修改 | +60 |
+| `emotion_video_controller.h` | 新建 | +40 |
+| `emotion_video_controller.c` | 新建 | +200 |
+| `http_server_emotion_api.c` | 新建 | +80 |
+| `http_server.c` | 修改 | +5 |
+| `app_claw.c` | 修改 | +30 |
+| `main/main.c` | 修改 | +8 |
+| `CMakeLists.txt` | 修改 | +3 |
+| `Kconfig` | 修改 | +5 |
+| **总计** | | **~441行** |
+
+---
+
+## 验证方案
+
+1. **单元测试**: 编译固件，烧录到 ESP32-P4 开发板
+2. **SD 卡准备**: 将 `Hiyori/videos/` 下的 10 个 .mp4 文件复制到 SD 卡 `/videos/` 目录
+3. **功能验证**:
+   - 上电后默认播放 m01_idle_shake
+   - 通过 `curl -X POST http://<device-ip>/api/emotion -d '{"emotion":"m04_wave"}'` 切换情绪
+   - 通过 `curl http://<device-ip>/api/emotion` 查询当前情绪
+   - 验证过渡效果无闪烁、无撕裂
+   - 验证连续快速切换不会死锁或崩溃
+4. **集成验证**: 通过 Web IM 与 AI 对话，验证 LLM 是否能根据对话内容自动切换情绪视频
+5. **边界测试**:
+   - SD 卡无视频文件时优雅降级到 emote UI
+   - 切换到不存在的情绪时返回错误
+   - display_arbiter 被 emote/Lua 抢占时视频暂停但不崩溃
+
+---
+
+---
+
+# 完成后系统状态
+
+## 1. 整体架构
+
+系统已具备完整的三层情绪视频切换能力：
+
+```
+LLM Agent (app_claw)
+  │ 通过 function_call 触发情绪切换
+  ▼
+emotion_video_controller  ─── HTTP API ─── 外部客户端
+  │ 情绪状态管理 + 映射 + 过渡
+  ▼
+video_player (扩展)
+  │ 支持指定文件播放 + 单文件循环
+  ▼
+app_stream_adapter → MJPEG 解码 → PPA/LCD 显示
+```
+
+## 2. 模块清单
+
+| 模块 | 文件 | 职责 |
+|------|------|------|
+| video_player 扩展 | `video_player.c/h` | 新增 `play_file`、`switch_to`、`get_current` 三个 API；支持单文件循环模式；保留原有 SD 卡轮播兼容 |
+| emotion_video_controller | `emotion_video_controller.c/h` | 10 种情绪枚举、名称→文件映射表、切换调度、PPA 过渡动画、当前状态维护 |
+| PPA 过渡 | `emotion_video_controller.c` 内部 | 复用 `ppa_blend.c/h`，切换时做 200ms RGB565 α 淡入淡出 |
+| HTTP API | `http_server_emotion_api.c` | `POST /api/emotion` 设置情绪、`GET /api/emotion` 查询状态，注册到 `http_server.c` |
+| Lua 绑定 | `lua_emotion_binding.c` | 向 Lua 虚拟机注册 `set_emotion(name)` 和 `get_emotion()` |
+| AI Agent 集成 | `app_claw.c` | 通过 `claw_cap_tools_provider` 注册 `set_emotion` 工具，LLM 可根据对话自动触发 |
+| 启动流程 | `main.c` | 上电后初始化 video_player → 初始化 emotion_video_controller → 默认播放 m01_idle_shake |
+| 构建 | `CMakeLists.txt` / `Kconfig` | 新增 `emotion_video_controller.c` 编译，新增 Kconfig 开关 |
+
+## 3. 情绪枚举与映射
+
+| 索引 | 枚举 | 文件名 | 含义 |
+|------|------|--------|------|
+| 0 | `EMOTION_IDLE_SHAKE` | `m01_idle_shake.mp4` | 待机摇晃 |
+| 1 | `EMOTION_SWAY` | `m02_sway.mp4` | 摇摆 |
+| 2 | `EMOTION_CALM` | `m03_calm.mp4` | 平静 |
+| 3 | `EMOTION_WAVE` | `m04_wave.mp4` | 挥手 |
+| 4 | `EMOTION_TIRED` | `m05_tired.mp4` | 疲倦 |
+| 5 | `EMOTION_SLIGHT_SWAY` | `m06_slight_sway.mp4` | 轻微摇摆 |
+| 6 | `EMOTION_BREATHING` | `m07_breathing.mp4` | 呼吸 |
+| 7 | `EMOTION_HAND_MOVES` | `m08_hand_moves.mp4` | 手部动作 |
+| 8 | `EMOTION_NOD` | `m09_nod.mp4` | 点头 |
+| 9 | `EMOTION_RELAXED` | `m10_relaxed.mp4` | 放松 |
+
+视频文件存放于 SD 卡 `/sdcard/videos/` 目录。
+
+## 4. 外部接口
+
+### 4.1 HTTP API
+
+```
+POST /api/emotion
+  请求: {"emotion": "m04_wave"}  或  {"emotion": 2}
+  响应: {"result": "ok", "current": "m04_wave"}
+
+GET /api/emotion
+  响应: {"current": "m04_wave", "index": 3, "playing": true}
+```
+
+### 4.2 Lua API
+
+```lua
+set_emotion("m04_wave")   -- 切换到挥手情绪
+local cur = get_emotion() -- 返回当前情绪名称，如 "m04_wave"
+```
+
+### 4.3 C API
+
+```c
+esp_err_t emotion_video_set(EMOTION_WAVE);           // 内部/LLM 直接调用
+emotion_video_t emotion_video_get_current(void);     // 查询当前情绪
+esp_err_t emotion_video_stop(void);                  // 停止播放，释放显示
+```
+
+## 5. 运行时行为
+
+### 5.1 正常启动流程
+
+1. `video_player_init()` — 初始化视频子系统（双缓冲、PPA、LCD 等）
+2. `video_player_start()` — 启动 video_task 但不自动扫描播放
+3. `emotion_video_controller_init("/sdcard/videos")` — 扫描视频目录，建立映射表
+4. `emotion_video_set(EMOTION_IDLE_SHAKE)` — 默认播放待机摇晃情绪
+
+### 5.2 情绪切换流程
+
+```
+触发源 (LLM / HTTP / Lua / 内部)
+  → 验证目标情绪有效性
+  → 如果当前已在播放目标情绪 → 忽略
+  → 调用 video_player_switch_to()
+    → 捕获当前帧
+    → 启动新文件解码
+    → PPA α 淡入淡出 (200ms)
+    → 新视频正常循环播放
+  → 更新当前情绪状态
+```
+
+### 5.3 异常处理
+
+| 场景 | 行为 |
+|------|------|
+| SD 卡无视频文件 | `init` 返回 `ESP_ERR_NOT_FOUND`，系统降级到 emote UI |
+| 切换到不存在的情绪 | 返回 `ESP_ERR_INVALID_ARG`，当前播放不受影响 |
+| display_arbiter 被抢占 | 视频帧静默丢弃，视频任务保持运行但不显示 |
+| 无音频轨道 | fallback 逻辑跳过音频解码，仅播放视频帧 |
+| 快速连续切换 | 前一次切换被中断，以最后一次请求为准 |
+
+## 6. 资源占用
+
+| 资源 | 占用 |
+|------|------|
+| 代码增量 | ~440 行 C 代码 |
+| RAM | 无额外 PSRAM 压力（过渡复用现有双缓冲） |
+| Flash | 情绪映射表编译期静态分配 |
+| 任务 | 无新增 FreeRTOS 任务（复用 video_task） |
+| 切换延迟 | ~200-500ms（被 PPA 过渡掩盖） |

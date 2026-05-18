@@ -6,15 +6,15 @@
 extern "C" {
 #endif  /* __cplusplus */
 
-#define PLAYBACK_FILE_PATH "/sdcard/test.wav"
-#define RECORD_FILE_PATH   "/sdcard/audio_adc_record.wav"
+#define PLAYBACK_FILE_PATH  "/sdcard/test.wav"
+#define RECORD_FILE_PATH    "/sdcard/audio_adc_record.wav"
 
 // Audio configuration structure
 typedef struct {
-    uint32_t sample_rate;
-    uint16_t channels;
-    uint16_t bits_per_sample;
-    uint32_t duration_seconds;
+    uint32_t  sample_rate;
+    uint16_t  channels;
+    uint16_t  bits_per_sample;
+    uint32_t  duration_seconds;
 } audio_config_t;
 
 typedef struct {

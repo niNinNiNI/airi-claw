@@ -75,7 +75,7 @@ class TestBoardDevicesYaml(unittest.TestCase):
     """board_devices.yaml — empty / no devices allowed; syntax error aborts."""
 
     def _devices_only_dir(self) -> Path:
-        """Directory with only board_devices.yaml so load_yaml_with_includes does not merge extras."""
+        """Create a temporary directory for board_devices.yaml tests."""
         d = Path(tempfile.mkdtemp())
         return d
 
@@ -126,6 +126,24 @@ class TestBoardDevicesYaml(unittest.TestCase):
             with self.assertRaises(BoardConfigYamlError) as ctx:
                 load_yaml_with_includes(str(main))
             self.assertEqual(ctx.exception.reason, BoardConfigYamlError.REASON_YAML_SYNTAX)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_same_directory_yaml_files_are_not_implicitly_loaded(self):
+        d = self._devices_only_dir()
+        try:
+            main = d / 'board_devices.yaml'
+            main.write_text('devices: []\n', encoding='utf-8')
+            sibling = d / 'single_file_override.yaml'
+            sibling.write_text(
+                'devices:\n'
+                '  - name: should_not_load\n'
+                '    type: custom\n',
+                encoding='utf-8',
+            )
+
+            data = load_yaml_with_includes(str(main))
+            self.assertEqual(data.get('devices'), [])
         finally:
             shutil.rmtree(d, ignore_errors=True)
 

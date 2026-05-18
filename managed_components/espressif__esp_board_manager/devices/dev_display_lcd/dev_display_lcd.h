@@ -14,24 +14,28 @@
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
 #include "esp_lcd_mipi_dsi.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
+#include "esp_lcd_panel_io_additions.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT
 #include "esp_lcd_io_parl.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT */
-#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
 #include "esp_lcd_panel_rgb.h"
 #ifndef ESP_RGB_LCD_PANEL_MAX_FB_NUM
 #define ESP_RGB_LCD_PANEL_MAX_FB_NUM  3
 #endif  /* ESP_RGB_LCD_PANEL_MAX_FB_NUM */
-#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
 
 #ifdef __cplusplus
 extern "C" {
 #endif  /* __cplusplus */
 
-#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_DSI     "dsi"     /*!< LCD display over DSI */
-#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI     "spi"     /*!< LCD display over SPI */
-#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_PARLIO  "parlio"  /*!< LCD display over PARLIO (esp_lcd_io_parl) */
-#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB     "rgb"     /*!< LCD display over RGB (esp_lcd_panel_rgb) */
+#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_DSI            "dsi"            /*!< LCD display over DSI */
+#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI            "spi"            /*!< LCD display over SPI */
+#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_PARLIO         "parlio"         /*!< LCD display over PARLIO (esp_lcd_io_parl) */
+#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB            "rgb"            /*!< LCD display over RGB (esp_lcd_panel_rgb) */
+#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB_3WIRE_SPI  "rgb_3wire_spi"  /*!< RGB LCD with 3-wire SPI init IO */
 
 typedef struct dev_display_lcd_config dev_display_lcd_config_t;
 
@@ -82,7 +86,7 @@ typedef struct {
 } dev_display_lcd_parlio_sub_config_t;
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT */
 
-#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
 /**
  * @brief  Action for board-provided RGB frame buffer callback
  */
@@ -97,7 +101,9 @@ typedef enum {
 typedef int (*dev_display_lcd_rgb_user_fbs_func_t)(const dev_display_lcd_config_t *lcd_cfg,
                                                    dev_display_lcd_rgb_user_fbs_action_t action,
                                                    void *user_fbs[ESP_RGB_LCD_PANEL_MAX_FB_NUM]);
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
 
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
 /**
  * @brief  RGB LCD display sub configuration
  */
@@ -107,6 +113,20 @@ typedef struct {
 } dev_display_lcd_rgb_sub_config_t;
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
 
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
+/**
+ * @brief  RGB LCD with 3-wire SPI initialization IO sub configuration
+ */
+typedef struct {
+    const char                          *io_expander_name;       /*!< Optional GPIO expander device name for 3-wire SPI lines */
+    const char                          *user_fbs_func;          /*!< Optional RGB user frame buffer callback name */
+    esp_lcd_panel_io_3wire_spi_config_t  io_3wire_spi_config;    /*!< 3-wire SPI panel IO configuration */
+    esp_lcd_rgb_panel_config_t           rgb_panel_config;       /*!< RGB panel configuration for pixel data */
+    esp_lcd_panel_dev_config_t           panel_config;           /*!< LCD panel device configuration */
+    uint8_t                              auto_del_panel_io : 1;  /*!< Panel driver may delete 3-wire IO after init */
+} dev_display_lcd_rgb_3wire_spi_sub_config_t;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
+
 /**
  * @brief  LCD display device handles structure
  *
@@ -115,9 +135,9 @@ typedef struct {
 typedef struct {
     esp_lcd_panel_io_handle_t  io_handle;     /*!< LCD panel IO handle */
     esp_lcd_panel_handle_t     panel_handle;  /*!< LCD panel device handle */
-#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#if (CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
     void *rgb_user_fbs[ESP_RGB_LCD_PANEL_MAX_FB_NUM];  /*!< Board-provided RGB frame buffers */
-#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) */
+#endif  /* (CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) */
 } dev_display_lcd_handles_t;
 
 /**
@@ -153,6 +173,9 @@ struct dev_display_lcd_config {
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
         dev_display_lcd_rgb_sub_config_t  rgb;
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
+        dev_display_lcd_rgb_3wire_spi_sub_config_t  rgb_3wire_spi;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
     } sub_cfg;
 };
 

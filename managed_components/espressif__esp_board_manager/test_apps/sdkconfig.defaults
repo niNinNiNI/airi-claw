@@ -19,6 +19,9 @@ CONFIG_ESPTOOLPY_BEFORE_RESET=y
 #
 CONFIG_PARTITION_TABLE_SINGLE_APP=y
 CONFIG_PARTITION_TABLE_MD5=y
+# Move partition table from default 0x8000 to 0xA000 so bootloader has 0x8000 bytes
+# instead of 0x6000. Required because bootloader on IDF master exceeds 24576 bytes.
+CONFIG_PARTITION_TABLE_OFFSET=0xA000
 # end of Partition Table
 
 

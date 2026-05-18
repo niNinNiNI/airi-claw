@@ -19,10 +19,10 @@ extern "C" {
  * @brief  LEDC control device configuration structure
  */
 typedef struct {
-    const char  *name;             /*!< LEDC control device name */
-    const char  *type;             /*!< Device type: "ledc_ctrl" */
-    const char  *ledc_name;        /*!< LEDC peripheral name */
-    uint32_t     default_percent;  /*!< Default brightness percentage (0-100) */
+    const char *name;             /*!< LEDC control device name */
+    const char *type;             /*!< Device type: "ledc_ctrl" */
+    const char *ledc_name;        /*!< LEDC peripheral name */
+    uint32_t    default_percent;  /*!< Default brightness percentage (0-100) */
 } dev_ledc_ctrl_config_t;
 
 /**

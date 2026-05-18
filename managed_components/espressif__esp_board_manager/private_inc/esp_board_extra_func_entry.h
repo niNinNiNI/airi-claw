@@ -21,8 +21,8 @@ extern "C" {
  *         and automatically discovered by the extra function system.
  */
 typedef struct {
-    const char  *owner_name;  /*!< Extra function name (must be unique) */
-    void        *extra_func;  /*!< Extra function function pointer */
+    const char *owner_name;  /*!< Extra function name (must be unique) */
+    void       *extra_func;  /*!< Extra function function pointer */
 } esp_board_extra_func_desc_t;
 
 /**
@@ -35,12 +35,11 @@ typedef struct {
  * @param  extra_func  Extra function function pointer
  * @param  ctx         Optional: user context pointer (can be NULL)
  */
-#define EXTRA_FUNC_IMPLEMENT(_name, _extra_func)                                                     \
-    static const esp_board_extra_func_desc_t __attribute__((section(".esp_board_extra_func"), used)) \
-    esp_board_extra_func_##_name = {                                                                 \
-        .owner_name = #_name,                                                                        \
-        .extra_func = (void *)_extra_func,                                                           \
-    }
+#define EXTRA_FUNC_IMPLEMENT(_name, _extra_func)                                                      \
+    static const esp_board_extra_func_desc_t __attribute__((section(".esp_board_extra_func"), used))  \
+    esp_board_extra_func_##_name = {  \
+        .owner_name = #_name,  \
+        .extra_func = (void *)_extra_func, }
 
 /**
  * @brief  Get extra_func function pointer and context by name

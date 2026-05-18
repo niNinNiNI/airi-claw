@@ -18,10 +18,9 @@
 static const char *TAG = "DEV_CAMERA_SUB_CSI";
 
 typedef struct {
-    dev_camera_handle_t base;
-    esp_cam_sensor_xclk_handle_t xclk_handle;
+    dev_camera_handle_t           base;
+    esp_cam_sensor_xclk_handle_t  xclk_handle;
 } dev_camera_csi_priv_handle_t;
-
 
 int dev_camera_sub_csi_init(void *cfg, int cfg_size, void **device_handle)
 {

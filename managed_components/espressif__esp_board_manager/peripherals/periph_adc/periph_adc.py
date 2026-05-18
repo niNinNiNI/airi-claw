@@ -107,14 +107,19 @@ def get_includes() -> list:
 
 def parse_adc_continuous_config(continuous_config: dict) -> dict:
     """Parse ADC continuous mode specific configuration"""
-    channel_id = continuous_config.get('channel_id')
+    channel_list = continuous_config.get('channel_list')
+    legacy_channel_id = continuous_config.get('channel_id')
+    if channel_list is not None and legacy_channel_id is not None:
+        raise ValueError("ADC continuous config cannot contain both 'channel_list' and legacy 'channel_id'")
+
+    channel_values = channel_list if channel_list is not None else legacy_channel_id
     patterns = continuous_config.get('patterns')
     has_patterns = isinstance(patterns, list) and len(patterns) > 0
-    has_channel_id = channel_id is not None
-    if has_patterns and has_channel_id:
-        raise ValueError("ADC continuous config cannot contain both 'patterns' and 'channel_id'")
-    if not has_patterns and not has_channel_id:
-        raise ValueError("ADC continuous config requires either 'patterns' or 'channel_id'")
+    has_channel_list = channel_values is not None
+    if has_patterns and has_channel_list:
+        raise ValueError("ADC continuous config cannot contain both 'patterns' and 'channel_list'")
+    if not has_patterns and not has_channel_list:
+        raise ValueError("ADC continuous config requires either 'patterns' or 'channel_list'")
 
     parsed_patterns = []
     channel_id_array = []
@@ -130,14 +135,14 @@ def parse_adc_continuous_config(continuous_config: dict) -> dict:
                 'bit_width': get_enum_value(item.get('bit_width'), 'ADC_BITWIDTH_DEFAULT', 'ADC bit width', VALID_ADC_BITWIDTH),
             })
     else:
-        if isinstance(channel_id, list) and len(channel_id) <= 0:
-            raise ValueError('Empty channel ID list for ADC continuous device')
-        if not isinstance(channel_id, list):
-            channel_id = [channel_id]
-        channel_id_array = [int(ch) for ch in channel_id]
+        if isinstance(channel_values, list) and len(channel_values) <= 0:
+            raise ValueError('Empty channel_list for ADC continuous device')
+        if not isinstance(channel_values, list):
+            channel_values = [channel_values]
+        channel_id_array = [int(ch) for ch in channel_values]
         for ch in channel_id_array:
             if ch < 0:
-                raise ValueError('channel_id cannot be negative')
+                raise ValueError('channel_list cannot contain negative channels')
 
     pattern_num = len(parsed_patterns) if has_patterns else len(channel_id_array)
     if pattern_num <= 0:

@@ -18,8 +18,8 @@ extern "C" {
  *         including the GPIO peripheral name and the active level for enabling power.
  */
 typedef struct {
-    const char  *gpio_name;     /*!< GPIO peripheral name */
-    uint8_t      active_level;  /*!< Active level to enable power: 0 or 1 */
+    const char *gpio_name;     /*!< GPIO peripheral name */
+    uint8_t     active_level;  /*!< Active level to enable power: 0 or 1 */
 } dev_power_ctrl_gpio_sub_config_t;
 
 /**
@@ -29,7 +29,7 @@ typedef struct {
  *         including the peripheral handle and the power control function pointer.
  */
 typedef struct {
-    void  *periph_handle;  /*!< Peripheral handle */
+    void *periph_handle;  /*!< Peripheral handle */
 } dev_power_ctrl_handle_t;
 
 /**
@@ -40,9 +40,9 @@ typedef struct {
  *         specific configuration.
  */
 typedef struct {
-    const char  *name;      /*!< Power control device name */
-    const char  *type;      /*!< Device type: "power_ctrl" */
-    const char  *sub_type;  /*!< Power sub-type: "gpio", "power_ic(todo)", etc. */
+    const char *name;      /*!< Power control device name */
+    const char *type;      /*!< Device type: "power_ctrl" */
+    const char *sub_type;  /*!< Power sub-type: "gpio", "power_ic(todo)", etc. */
     union {
         dev_power_ctrl_gpio_sub_config_t  gpio;  /*!< GPIO sub-type configuration */
     } sub_cfg;                                   /*!< Sub-type specific configuration */

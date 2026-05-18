@@ -43,7 +43,7 @@ def parse(name: str, config: dict) -> dict:
         owned_by_hw = ldo_cfg.get('owned_by_hw', 0)
         if owned_by_hw not in [0, 1]:
             raise ValueError(f'Invalid owned_by_hw: {owned_by_hw}. Must be 0 or 1.')
-        
+
         # Create base config
         result = {
             'struct_type': 'esp_ldo_channel_config_t',

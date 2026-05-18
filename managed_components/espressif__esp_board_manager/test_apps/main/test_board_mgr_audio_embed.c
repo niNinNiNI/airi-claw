@@ -81,7 +81,7 @@ static void embedded_wav_playback_task(void *pvParameters)
         .sample_rate = sample_rate,
         .channels = channels,
         .bits_per_sample = bits_per_sample,
-        .duration_seconds = 10
+        .duration_seconds = 10,
     };
 
     esp_err_t ret = configure_codec("audio_dac", &dac_config, true, &dac_handles);
@@ -160,7 +160,7 @@ static void partition_recording_task(void *pvParameters)
     record_partition_used = 0;
 
     dev_audio_codec_config_t *adc_cfg = NULL;
-    ret = esp_board_manager_get_device_config("audio_adc", (void**)&adc_cfg);
+    ret = esp_board_manager_get_device_config("audio_adc", (void **)&adc_cfg);
     if (ret != ESP_OK || adc_cfg == NULL) {
         ESP_LOGE(TAG, "Failed to get audio_adc device config");
         goto cleanup_partition_recording;
@@ -274,14 +274,14 @@ static void play_recorded_audio_task(void *pvParameters)
 
     // Get the same I2S configuration used for recording to ensure consistency
     dev_audio_codec_config_t *dac_cfg = NULL;
-    esp_err_t ret = esp_board_manager_get_device_config("audio_dac", (void**)&dac_cfg);
+    esp_err_t ret = esp_board_manager_get_device_config("audio_dac", (void **)&dac_cfg);
     if (ret != ESP_OK || dac_cfg == NULL) {
         ESP_LOGE(TAG, "Failed to get audio_dac device config");
         goto cleanup_play_recorded;
     }
 
     periph_i2s_config_t *i2s_cfg = NULL;
-    ret = esp_board_manager_get_periph_config(dac_cfg->i2s_cfg.name, (void**)&i2s_cfg);
+    ret = esp_board_manager_get_periph_config(dac_cfg->i2s_cfg.name, (void **)&i2s_cfg);
     if (ret != ESP_OK || i2s_cfg == NULL) {
         ESP_LOGE(TAG, "Failed to get I2S config for %s", dac_cfg->i2s_cfg.name);
         goto cleanup_play_recorded;
@@ -292,7 +292,7 @@ static void play_recorded_audio_task(void *pvParameters)
         .sample_rate = recorded_audio_config.sample_rate,
         .channels = recorded_audio_config.channels,
         .bits_per_sample = recorded_audio_config.bits_per_sample,
-        .duration_seconds = recorded_audio_config.duration_seconds
+        .duration_seconds = recorded_audio_config.duration_seconds,
     };
 
     ret = configure_codec("audio_dac", &dac_config, true, &dac_handles);

@@ -107,11 +107,11 @@ After running the script, you need to sequentially select **chip, device, and pe
 
 **Core meaning: `version` declares the schema-syntax version this YAML follows**—the **parsing contract** between the generator and your configuration. When Board Manager later changes directory layout or field semantics incompatibly, tooling can use this field to distinguish old vs new syntax, migrate configs, and avoid silently breaking projects.
 
-**1. Board-level contract (`board_info.yaml`)**  
-- Indicates which **board description schema generation** applies (layout, meaning of `board_info` fields, etc.).  
+**1. Board-level contract (`board_info.yaml`)**
+- Indicates which **board description schema generation** applies (layout, meaning of `board_info` fields, etc.).
 - **Long-term use:** when board-layer schema is refactored at scale, the generator can branch on this value and transition old vs new configs.
 
-**2. Devices and peripherals (only the following form is supported)**  
+**2. Devices and peripherals (only the following form is supported)**
 In **`board_peripherals.yaml`** and **`board_devices.yaml`**, use **`version` only inside each item** of the `peripherals` / `devices` list, as a **sibling** of **`name`** and **`type`** (peer fields in the same mapping), for example:
 
 ```yaml
@@ -128,7 +128,7 @@ devices:
 
 **Generation tag (not a permanent lock-in):** The current generation tag for board YAML in this repo is **`1.0.0`**—meaning the generation consistent with the current parser and field semantics. **Omitting `version` means the current generation** (equivalent to `1.0.0`). **`version: default`** (any casing) is equivalent to omitting or using `1.0.0`; generated metadata **resolves it to the current tag `1.0.0`**. **Breaking changes** will use **a new tag** (e.g. `2.0.0`); newer toolchains will recognize both. If you set a tag **this release does not recognize**, generation **emits a warning** (check Board Manager version or use the current tag / `default` / omit the field).
 
-**3. Do not confuse with the following `version` keys**  
+**3. Do not confuse with the following `version` keys**
 - Under **`dependencies`** in `board_devices.yaml`, each component’s `version` (e.g. `"*"`, `~1.5`) is an **ESP-IDF Component Manager** dependency constraint; **not** the YAML parsing contract above.
 
 ### 4. **Configuration File Structure**
@@ -237,6 +237,94 @@ To support flexible board adaptation, the board directory allows you to provide 
 
 For concrete examples of how this is done, see:
 [setup_device.c](esp_board_manager/boards/esp_vocat_board_v1_2/setup_device.c), which implements specific initialization flows for display_lcd and lcd_touch devices
+
+### 7. Locally amending an existing board with `-a/--amend`
+
+When you only need small differences on top of a built-in board (a single pin tweak, a swapped touch chip, an extra device the base board doesn't have), copying the whole board directory is overkill. Instead, prepare an **amend directory** containing a `board_amend.yaml` manifest and apply it with `-a/--amend <dir>` at generation time.
+
+```bash
+# The amend directory must contain board_amend.yaml; the path can be absolute or relative.
+idf.py bmgr -b esp32_s3_korvo2_v3 -a path/to/my_amend
+```
+
+#### Amend directory layout
+
+```text
+my_amend/
+  board_amend.yaml          # required: the manifest
+  sdkconfig.defaults.board  # optional; must be listed in apply: to take effect
+  Kconfig.projbuild         # optional; must be listed in apply: to take effect
+
+  # Files explicitly referenced by the apply: list
+  tweak.yaml
+  strong_setup.c
+  pack/
+    pack_extra.yaml
+    pack_setup.c
+    sdkconfig.defaults.board  # must be listed as pack/sdkconfig.defaults.board
+    Kconfig.projbuild         # must be listed as pack/Kconfig.projbuild
+```
+
+Notes:
+
+- **All files** must be explicitly listed in `apply:` to take effect. If these files exist under the amend root but are not included in the manifest, the generator will emit an `info` log such as `"present at amend root but not listed in apply"`, and the files themselves will be ignored.
+- **Directory items are not supported**: each item must point to a specific file. If multiple files under a directory need to be applied, they must be listed individually (including subdirectory prefixes, e.g. `pack/foo.yaml`).
+- Paths in `apply` are resolved against the directory containing `board_amend.yaml`. Relative and absolute paths are allowed.
+
+#### `board_amend.yaml` schema (v1.0)
+
+```yaml
+version: "1.0"
+description: "Example amend"
+
+apply:                       # required, ordered list; later entries override earlier ones
+  - tweak.yaml               # YAML fragment: top-level must contain devices: or peripherals:
+  - strong_setup.c           # C/C++ source: compiled into the generated component
+  - pack/pack_extra.yaml     # specific YAML inside a sub-directory
+  - pack/pack_setup.c        # specific C inside a sub-directory
+  - pack/sdkconfig.defaults.board
+  - pack/Kconfig.projbuild
+  - sdkconfig.defaults.board # amend-root file; must be listed here to take effect
+  - Kconfig.projbuild        # same as above
+```
+
+Recognised file types:
+
+| Recognised by | Files | Role |
+|---|---|---|
+| Suffix `.yaml` / `.yml` | YAML fragment | Merged into base devices / peripherals |
+| Suffix `.c` / `.cpp` / `.cc` / `.cxx` / `.S` | C/C++ source | Compiled into the generated component |
+| Suffix `.h` / `.hpp` | Header | Its parent directory is added to `INCLUDE_DIRS` |
+| Basename `sdkconfig.defaults.board` | Sdkconfig defaults | Appended to `board_manager.defaults` in `apply:` order |
+| Basename `Kconfig.projbuild` | Kconfig fragment | Appended to the generated `Kconfig.projbuild` in `apply:` order |
+| Anything else (incl. directories) | — | Aborts with an error |
+
+#### YAML merge rules
+
+Every YAML fragment must define `devices:` or `peripherals:` (or both) at the top level; otherwise generation fails. Fragments are applied in `apply:` order, "later overrides earlier":
+
+- Same-name device / peripheral entries are merged field-by-field. `config` uses a recursive deep merge, `peripherals` sub-lists are merged by `name`, other fields are replaced wholesale.
+- Names that don't already exist are appended to the list.
+
+#### Priority order
+
+`sdkconfig.defaults.board` is appended in this order (later sections override earlier same-symbol entries; the older line is rewritten with a `BMGR_CONFIG_OVERRIDE` marker so the trail stays auditable):
+
+1. Auto-generated Board Manager defaults section
+2. Selected board's own `sdkconfig.defaults.board`
+3. **Every `apply:` item whose basename is `sdkconfig.defaults.board`**, in manifest order (later items override earlier ones)
+
+`Kconfig.projbuild` is appended as plain text (no override detection; symbol clashes are caught by IDF's menuconfig/build stage):
+
+1. Auto-generated Board Manager Kconfig section
+2. Selected board's `Kconfig.projbuild`
+3. **Every `apply:` item whose basename is `Kconfig.projbuild`**, in manifest order
+
+#### C/C++ sources and weak-symbol overrides
+
+`.c / .cpp / .cc / .cxx / .S` files listed in `apply:` are added to the generated component via `target_sources(${COMPONENT_LIB} PRIVATE ...)` (each entry annotated with its `apply[]` index). Every source / header file's parent directory is added to `INCLUDE_DIRS` (de-duplicated).
+
+The generated component has `idf_component_set_property(... WHOLE_ARCHIVE TRUE)`, so any **strong symbol** supplied by an amend fragment wins over a **weak symbol** with the same name in the base board — a typical pattern for overriding board hooks defined in `setup_device.c`.
 
 ## YAML Configuration Rules
 

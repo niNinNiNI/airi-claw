@@ -52,8 +52,8 @@ int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle)
     for (size_t i = 0; i < sizeof(touch_cfg->i2c_addr) / sizeof(touch_cfg->i2c_addr[0]); i++) {
         if (touch_cfg->i2c_addr[i] > 0) {
             ESP_LOGD(TAG, "I2C handle: %p, dev_addr[%zu]: 0x%02x, scl_speed_hz: %" PRIu32,
-                i2c_bus_handle, i, touch_cfg->i2c_addr[i], touch_cfg->io_i2c_config.scl_speed_hz);
-            ret = i2c_master_probe(i2c_bus_handle, touch_cfg->i2c_addr[i], 200/portTICK_PERIOD_MS);
+                     i2c_bus_handle, i, touch_cfg->i2c_addr[i], touch_cfg->io_i2c_config.scl_speed_hz);
+            ret = i2c_master_probe(i2c_bus_handle, touch_cfg->i2c_addr[i], 200 / portTICK_PERIOD_MS);
             if (ret == ESP_OK) {
                 io_i2c_config.dev_addr = touch_cfg->i2c_addr[i];
                 break;
@@ -64,7 +64,7 @@ int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle)
     ret = esp_lcd_new_panel_io_i2c((i2c_master_bus_handle_t)i2c_bus_handle, &io_i2c_config, &touch_handles->io_handle);
 #else
     ret = esp_lcd_new_panel_io_i2c_v2((i2c_master_bus_handle_t)i2c_bus_handle, &io_i2c_config, &touch_handles->io_handle);
-#endif
+#endif  /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) */
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create LCD panel IO for touch, i2c addr: %" PRIx32, io_i2c_config.dev_addr);
         free(touch_handles);

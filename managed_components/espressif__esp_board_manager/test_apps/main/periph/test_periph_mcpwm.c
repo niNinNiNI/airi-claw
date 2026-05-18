@@ -21,10 +21,10 @@
 #include "esp_board_manager_defs.h"
 #include "periph_mcpwm.h"
 
-#define EXAMPLE_MCPWM_DELAY_MS 1000
+#define EXAMPLE_MCPWM_DELAY_MS  1000
 
-static const char *TAG          = "TEST_MCPWM";
-static uint32_t    period_ticks = 0;
+static const char *TAG = "TEST_MCPWM";
+static uint32_t period_ticks = 0;
 
 static void test_mcpwm_setup_pwm_waveform(periph_mcpwm_handle_t *mcpwm_handle)
 {

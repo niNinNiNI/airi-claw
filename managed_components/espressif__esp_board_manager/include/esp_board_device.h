@@ -16,7 +16,7 @@
 extern "C" {
 #endif  /* __cplusplus */
 
-#define DEVICE_EXTRA_FUNC_REGISTER(name, extra_func) EXTRA_FUNC_IMPLEMENT(name, extra_func)
+#define DEVICE_EXTRA_FUNC_REGISTER(name, extra_func)  EXTRA_FUNC_IMPLEMENT(name, extra_func)
 
 /**
  * @brief  Function pointer type for device initialization
@@ -56,14 +56,14 @@ typedef struct esp_board_device_desc {
  * @brief  Structure representing a device handle
  */
 typedef struct esp_board_device_handle {
-    struct esp_board_device_handle  *next;           /*!< Pointer to next device handle */
-    const char                      *name;           /*!< Device name */
-    const char                      *chip;           /*!< Device chip type */
-    const char                      *type;           /*!< Device type */
-    void                            *device_handle;  /*!< Device-specific handle */
-    uint8_t                          ref_count;      /*!< Reference count */
-    esp_board_device_init_func       init;           /*!< Device initialization function */
-    esp_board_device_deinit_func     deinit;         /*!< Device deinitialization function */
+    struct esp_board_device_handle *next;           /*!< Pointer to next device handle */
+    const char                     *name;           /*!< Device name */
+    const char                     *chip;           /*!< Device chip type */
+    const char                     *type;           /*!< Device type */
+    void                           *device_handle;  /*!< Device-specific handle */
+    uint8_t                         ref_count;      /*!< Reference count */
+    esp_board_device_init_func      init;           /*!< Device initialization function */
+    esp_board_device_deinit_func    deinit;         /*!< Device deinitialization function */
 } esp_board_device_handle_t;
 
 /**

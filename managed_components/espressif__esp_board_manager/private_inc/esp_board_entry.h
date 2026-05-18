@@ -33,7 +33,7 @@ typedef int (*esp_board_entry_init_func_t)(void *config, int cfg_size, void **de
  * @param  device_handle  Device handle to deinitialize
  *
  * @return
- *       -  0  On success
+ *       - 0   On success
  *       - <0  On failure
  */
 typedef int (*esp_board_entry_deinit_func_t)(void *device_handle);
@@ -45,7 +45,7 @@ typedef int (*esp_board_entry_deinit_func_t)(void *device_handle);
  *         and automatically discovered by the board entry system.
  */
 typedef struct {
-    const char                     *entry_name;  /*!< Board entry name (must match YAML config) */
+    const char                    *entry_name;   /*!< Board entry name (must match YAML config) */
     esp_board_entry_init_func_t    init_func;    /*!< Entry initialization function */
     esp_board_entry_deinit_func_t  deinit_func;  /*!< Entry deinitialization function */
 } esp_board_entry_desc_t;
@@ -60,13 +60,12 @@ typedef struct {
  * @param  init_func    Initialization function pointer
  * @param  deinit_func  Deinitialization function pointer
  */
-#define ESP_BOARD_ENTRY_IMPLEMENT(name, init_func_entry, deinit_func_entry) \
-    static const esp_board_entry_desc_t __attribute__((section(".esp_board_entries_desc"), used)) \
-    esp_board_entry_##name = { \
-        .entry_name = #name, \
-        .init_func = init_func_entry, \
-        .deinit_func = deinit_func_entry \
-    }
+#define ESP_BOARD_ENTRY_IMPLEMENT(name, init_func_entry, deinit_func_entry)                        \
+    static const esp_board_entry_desc_t __attribute__((section(".esp_board_entries_desc"), used))  \
+    esp_board_entry_##name = {  \
+        .entry_name  = #name,  \
+        .init_func   = init_func_entry,  \
+        .deinit_func = deinit_func_entry}
 
 /**
  * @brief  Legacy macro for board device implementation

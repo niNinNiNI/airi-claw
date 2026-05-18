@@ -82,9 +82,9 @@ devices:
     config:
       adc_enabled: true
       dac_enabled: false
-      adc_max_channel: 2
-      adc_channel_mask: "11"
-      adc_channel_labels: ['FL', 'FR']
+      adc_max_channel: 4
+      adc_channel_mask: "0111"
+      adc_channel_labels: ['NA', 'RE', 'FR', 'FL'] # MSB ~ LSB
       adc_init_gain: 0
       mclk_enabled: false
     peripherals:

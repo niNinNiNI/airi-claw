@@ -49,8 +49,8 @@ typedef struct {
 } dev_fs_fat_sdmmc_sub_config_t;
 
 typedef struct {
-    int          cs_gpio_num;   /*!< Chip select GPIO number */
-    const char  *spi_bus_name;  /*!< SPI bus name */
+    int         cs_gpio_num;   /*!< Chip select GPIO number */
+    const char *spi_bus_name;  /*!< SPI bus name */
 } dev_fs_fat_spi_sub_config_t;
 
 /**
@@ -58,9 +58,9 @@ typedef struct {
  *         This structure contains the handle for the SD card device, including the card, host, and mount point
  */
 typedef struct {
-    sdmmc_card_t  *card;         /*!< SD card card handle */
-    sdmmc_host_t   host;         /*!< SD card host handle */
-    char          *mount_point;  /*!< Mount point path */
+    sdmmc_card_t *card;         /*!< SD card card handle */
+    sdmmc_host_t  host;         /*!< SD card host handle */
+    char         *mount_point;  /*!< Mount point path */
 } dev_fs_fat_handle_t;
 
 /**

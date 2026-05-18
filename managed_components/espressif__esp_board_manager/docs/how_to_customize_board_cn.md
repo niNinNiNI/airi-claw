@@ -238,6 +238,117 @@ devices:
 有关具体实现示例可以参考：
 [setup_device.c](esp_board_manager/boards/esp_vocat_board_v1_2/setup_device.c)，该文件实现了 display_lcd 和 lcd_touch 设备的特定初始化流程
 
+### 7. 使用 `-a/--amend` 基于已有板子做局部定制
+
+如果只需要在内置板子上做少量差异，例如修改某个管脚、替换触摸芯片、追加板子默认没有的设备，通常不需要复制整份板子目录。可以准备一个 **amend 目录**，里面放一份 `board_amend.yaml` 清单，然后使用 `-a/--amend <dir>` 在生成时把这些变更"打补丁"到已选板子之上。
+
+```bash
+# amend 目录是一个绝对/相对路径，里面必须有 board_amend.yaml
+idf.py bmgr -b esp32_s3_korvo2_v3 -a path/to/my_amend
+```
+
+#### amend 目录结构
+
+```text
+my_amend/
+  board_amend.yaml          # 必需：清单
+  sdkconfig.defaults.board  # 可选；要生效必须在 apply: 中显式列出
+  Kconfig.projbuild         # 可选；要生效必须在 apply: 中显式列出
+
+  # apply 列表里显式引用的文件
+  tweak.yaml
+  strong_setup.c
+  pack/
+    pack_extra.yaml
+    pack_setup.c
+    sdkconfig.defaults.board  # 须显式列为 pack/sdkconfig.defaults.board
+    Kconfig.projbuild         # 须显式列为 pack/Kconfig.projbuild
+```
+
+注意：
+
+- **所有文件**。必须在 `apply:` 中显式列出才会生效，amend 根下放了这两个文件但未列入 manifest 时，生成器会打 `info` 日志提示"present at amend root but not listed in apply"，文件本身被忽略。
+- **目录 item 不被支持**：每个 item 必须指向具体文件。需要引用某目录下的若干文件时，把它们一一列出（含子目录前缀，例如 `pack/foo.yaml`）。
+- `apply` 中的路径相对 `board_amend.yaml` 所在目录，允许相对路径和绝对路径。
+
+#### `board_amend.yaml` 清单格式（v1.0）
+
+```yaml
+version: "1.0"
+description: "Example amend"
+
+apply:                       # 必需，有序列表；后者覆盖前者
+  - tweak.yaml               # YAML 片段：顶层必须含 devices: 或 peripherals:
+  - strong_setup.c           # C/C++ 源码：编译进生成组件
+  - pack/pack_extra.yaml     # 子目录里的具体 YAML
+  - pack/pack_setup.c        # 子目录里的具体源码
+  - pack/sdkconfig.defaults.board
+  - pack/Kconfig.projbuild
+  - sdkconfig.defaults.board # amend 根下的，要生效必须列在这里
+  - Kconfig.projbuild        # 同上
+```
+
+支持的文件类型：
+
+| 识别方式 | 文件 | 用途 |
+|---|---|---|
+| 后缀 `.yaml` / `.yml` | YAML 片段 | 合并到 base devices / peripherals |
+| 后缀 `.c` / `.cpp` / `.cc` / `.cxx` / `.S` | C/C++ 源码 | 加入生成组件的源码列表 |
+| 后缀 `.h` / `.hpp` | 头文件 | 所在目录加入 `INCLUDE_DIRS` |
+| basename 固定 `sdkconfig.defaults.board` | sdkconfig 默认值 | 按 `apply:` 顺序拼接到 `board_manager.defaults` |
+| basename 固定 `Kconfig.projbuild` | Kconfig 片段 | 按 `apply:` 顺序追加到生成的 `Kconfig.projbuild` |
+| 其它（含目录） | — | 报错 |
+
+#### YAML 合并规则
+
+每个 YAML 片段顶层必须含 `devices:` 或 `peripherals:`（或两者都有），否则报错。合并按 `apply:` 列表顺序进行，"后者覆盖前者"：
+
+- 同名 device / peripheral：字段级合并；`config` 走深度合并，`peripherals` 子列表按 `name` 二次合并，其它字段整体替换。
+- 不存在的名字：追加到列表末尾。
+
+示例片段（在已有板子上新增一个 GPIO 外设和对应电源控制设备）：
+
+```yaml
+# tweak.yaml
+peripherals:
+  - name: gpio_sensor_power
+    type: gpio
+    role: io
+    version: default
+    config:
+      pin: 4
+      mode: GPIO_MODE_OUTPUT
+
+devices:
+  - name: sensor_power
+    type: power_ctrl
+    sub_type: gpio
+    version: default
+    peripherals:
+      - name: gpio_sensor_power
+        active_level: 1
+```
+
+#### 优先级顺序
+
+**`sdkconfig.defaults.board`**（后者覆盖前者，重复 `CONFIG_*` 会被打上 `BMGR_CONFIG_OVERRIDE` 标记保留可追溯）：
+
+1. bmgr 自动生成的板级 `CONFIG_*` 段
+2. 选中板子目录的 `sdkconfig.defaults.board`
+3. **每个 `apply:` 中 basename 为 `sdkconfig.defaults.board` 的 item**，按 manifest 顺序拼接；列表里靠后的覆盖靠前的
+
+**`Kconfig.projbuild`**（纯文本追加，不做覆盖检测；符号冲突由 IDF menuconfig/build 阶段报错）：
+
+1. bmgr 自动生成的板级 Kconfig 符号段
+2. 选中板子目录的 `Kconfig.projbuild`
+3. **每个 `apply:` 中 basename 为 `Kconfig.projbuild` 的 item**，按 manifest 顺序追加
+
+#### C/C++ 源码与板级钩子覆盖
+
+`apply` 列出的 `.c / .cpp / .cc / .cxx / .S` 文件会以 `target_sources(${COMPONENT_LIB} PRIVATE ...)` 的形式精确传给生成的组件；每个源码 / 头文件所在目录都会进 `INCLUDE_DIRS`（去重）。
+
+生成的组件设有 `idf_component_set_property(... WHOLE_ARCHIVE TRUE)`，因此 amend 提供的**强符号**会盖掉 base 板子中同名的 **weak 函数**——典型用法是用 amend 重写板子的初始化 / 钩子函数（例如 `setup_device.c` 中的某个钩子）。
+
 ## YAML 配置规则
 
 有关详细的 YAML 配置规则和格式规范，请参阅 [设备和外设规则](device_and_peripheral_rules.md)。

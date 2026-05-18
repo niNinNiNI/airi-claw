@@ -14,6 +14,11 @@ dependencies:
     - if: $CONFIG{ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT} == True
     require: public
     version: ^1.0.1
+  espressif/esp_lcd_panel_io_additions:
+    matches:
+    - if: $CONFIG{ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT} == True
+    require: public
+    version: ^1.0.0
   espressif/esp_lcd_touch:
     matches:
     - if: $CONFIG{ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT} == True
@@ -30,15 +35,14 @@ dependencies:
     - if: $CONFIG{ESP_BOARD_DEV_LED_STRIP_SUPPORT} == True
     require: public
     version: '*'
-description: Board manager for ESP-GMF
-documentation: https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md
-issues: https://github.com/espressif/esp-gmf/issues
-repository: git://github.com/espressif/esp-gmf.git
+description: Board manager for Espressif
+documentation: https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/README.md
+issues: https://github.com/espressif/esp-board-manager/issues
+repository: git://github.com/espressif/esp-board-manager.git
 repository_info:
-  commit_sha: 38e97d4f41ee17618bd8399f4581268211a7c4e8
-  path: ./packages/esp_board_manager
+  commit_sha: c8aa97be6469e067643c141bc026f61e8da375c8
+  path: ./esp_board_manager
 tags:
-- gmf
 - board_manager
-url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_board_manager
-version: 0.5.10
+url: https://github.com/espressif/esp-board-manager
+version: 0.5.11

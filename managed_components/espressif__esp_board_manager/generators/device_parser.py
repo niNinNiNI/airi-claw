@@ -13,12 +13,17 @@ from .utils.yaml_utils import load_yaml_safe, BoardConfigYamlError
 from .settings import BoardManagerConfig
 from .parser_loader import load_parsers
 from .peripheral_parser import PeripheralParser
+from .schema_validator import DeviceSchemaValidator
 from .name_validator import validate_component_name
 from .utils.board_schema_version import warn_if_invalid_board_yaml_schema_version
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, TYPE_CHECKING
 import os
 import re
+from .utils.config_utils import load_yaml_with_includes as load_config_yaml_with_includes
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from .amend import AmendPlan
 
 class DeviceParser(LoggerMixin):
     """Parser for device configurations"""
@@ -28,6 +33,7 @@ class DeviceParser(LoggerMixin):
         self.root_dir = root_dir
         self.peripheral_parser = PeripheralParser(root_dir)
         self.parser_loader = None  # Will be initialized when needed
+        self.schema_validator = DeviceSchemaValidator(root_dir / 'devices')
 
     def _get_parser_loader(self):
         """Lazy initialization of parser_loader"""
@@ -144,6 +150,11 @@ class DeviceParser(LoggerMixin):
                         f'{yaml_path} device #{i + 1} ({dev["name"]})',
                     )
 
+                # Check if generation should be skipped for this device
+                if dev.get('gen_skip', False):
+                    self.logger.info(f"⏭️  Skipping device '{dev['name']}' (gen_skip=True)")
+                    continue
+
                 # Validate peripheral references
                 if 'peripherals' in dev:
                     for periph in dev['peripherals']:
@@ -201,6 +212,23 @@ class DeviceParser(LoggerMixin):
                 if 'init_skip' not in dev:
                     dev['init_skip'] = False  # Default to False (do not skip initialization)
 
+                # Validate top-level device fields
+                issues = self.schema_validator.validate_device_fields(dev, dev.get('name', f'#{i+1}'))
+                for issue in issues:
+                    self.logger.warning(self.schema_validator.format_issue(issue))
+
+                # Validate device configuration against schema
+                if 'config' in dev and isinstance(dev['config'], dict):
+                    issues = self.schema_validator.validate_config(
+                        device_type=dev.get('type', ''),
+                        sub_type=dev.get('sub_type'),
+                        config=dev['config'],
+                        device_name=dev.get('name', f'#{i+1}')
+                    )
+
+                    for issue in issues:
+                        self.logger.warning(self.schema_validator.format_issue(issue))
+
                 result_devices.append(dev)
                 device_types.append(dev['type'])
 
@@ -215,7 +243,7 @@ class DeviceParser(LoggerMixin):
         self.logger.info(f'   Loaded {len(result_devices)} devices from {yaml_path}')
         return device_types
 
-    def parse_devices_yaml_legacy(self, yaml_path: str, peripherals_dict: Dict[str, Any], stop_on_error: bool = True) -> List[Any]:
+    def parse_devices_yaml_legacy(self, yaml_path: str, peripherals_dict: Dict[str, Any], stop_on_error: bool = True, amend_plan: Optional['AmendPlan'] = None) -> List[Any]:
         """
         Legacy method that returns a list of device objects for backward compatibility.
 
@@ -223,9 +251,10 @@ class DeviceParser(LoggerMixin):
         through even when absent from ``peripherals_dict``; each device ``parse_*`` validates.
 
         Args:
-            yaml_path: Path to the YAML file
+            yaml_path:        Path to the YAML file
             peripherals_dict: Dictionary of available peripherals (may be empty)
-            stop_on_error: Reserved; peripheral binding errors are raised from device parsers.
+            stop_on_error:    Reserved; peripheral binding errors are raised from device parsers.
+            amend_plan:       Optional AmendPlan to merge on top of the base YAML
         """
         from dataclasses import dataclass
 
@@ -242,7 +271,7 @@ class DeviceParser(LoggerMixin):
             version: str = None  # Optional Board Manager schema generation tag
 
         # Load YAML with includes; empty merged file / missing devices / devices: [] are valid.
-        data = self._load_yaml_with_includes(yaml_path)
+        data = self._load_yaml_with_includes(yaml_path, amend_plan) or {}
 
         devices = data.get('devices')
         if devices is None:
@@ -262,6 +291,11 @@ class DeviceParser(LoggerMixin):
         result_devices = []
         for i, dev in enumerate(devices):
             try:
+                # Check if generation should be skipped for this device
+                if dev.get('gen_skip', False):
+                    self.logger.info(f"⏭️  Skipping device '{dev.get('name', 'Unnamed')}' due to gen_skip=True")
+                    continue
+
                 name = dev.get('name')
                 if not name:
                     self.logger.error(f'Device missing name! Path: {yaml_path}')
@@ -315,6 +349,24 @@ class DeviceParser(LoggerMixin):
                         self.logger.info(f"Device '{name}', Peripheral #{j+1}: {p}. Error: {e}")
                         continue
 
+                # Validate top-level device fields
+                issues = self.schema_validator.validate_device_fields(dev, name)
+                for issue in issues:
+                    self.logger.warning(self.schema_validator.format_issue(issue))
+
+                # Validate device configuration against schema
+                if 'config' in dev and isinstance(dev['config'], dict):
+                    issues = self.schema_validator.validate_config(
+                        device_type=dev.get('type', ''),
+                        sub_type=dev.get('sub_type'),
+                        config=dev['config'],
+                        device_name=name
+                    )
+
+                    for issue in issues:
+                        formatted_msg = self.schema_validator.format_issue(issue)
+                        self.logger.warning(formatted_msg)
+
                 result_devices.append(Device(
                     name=name,
                     type=dev.get('type', ''),
@@ -338,12 +390,12 @@ class DeviceParser(LoggerMixin):
         self.logger.debug(f'   Loaded {len(result_devices)} devices from {yaml_path}')
         return result_devices
 
-    def _load_yaml_with_includes(self, yaml_path: str) -> dict:
+    def _load_yaml_with_includes(self, yaml_path: str, amend_plan: Optional['AmendPlan'] = None) -> dict:
         """Load YAML file with support for cross-file references and includes"""
-        return load_yaml_with_includes(yaml_path)
+        return load_yaml_with_includes(yaml_path, amend_plan)
 
 
-def load_yaml_with_includes(yaml_path: str) -> dict:
+def load_yaml_with_includes(yaml_path: str, amend_plan: Optional['AmendPlan'] = None) -> dict:
     """Load YAML file with support for cross-file references and includes.
 
     Whitespace-only merged content or a null document is treated as ``{}`` (no devices / keys).
@@ -353,45 +405,4 @@ def load_yaml_with_includes(yaml_path: str) -> dict:
         FileNotFoundError: main YAML file missing.
         BoardConfigYamlError: syntax error or root not a dict.
     """
-    import yaml
-    import os
-
-    # First, load all YAML files and collect their content
-    yaml_dir = os.path.dirname(yaml_path)
-    all_content = ''
-
-    # Load additional YAML files first (to ensure anchors are defined before references)
-    if yaml_dir:
-        for filename in os.listdir(yaml_dir):
-            if filename.endswith('.yaml') and filename != os.path.basename(yaml_path):
-                additional_yaml_path = os.path.join(yaml_dir, filename)
-                try:
-                    with open(additional_yaml_path, 'r', encoding='utf-8') as f:
-                        additional_content = f.read()
-                        all_content += additional_content + '\n'
-                except Exception as e:
-                    print(f'Warning: Could not load {filename}: {e}')
-
-    # Then load the main YAML file
-    try:
-        with open(yaml_path, 'r', encoding='utf-8') as f:
-            main_content = f.read()
-            all_content += main_content
-    except FileNotFoundError:
-        raise FileNotFoundError(yaml_path) from None
-
-    if not all_content.strip():
-        return {}
-
-    try:
-        data = yaml.safe_load(all_content)
-    except yaml.YAMLError as e:
-        raise BoardConfigYamlError(yaml_path, BoardConfigYamlError.REASON_YAML_SYNTAX, str(e)) from e
-    except Exception as e:
-        raise BoardConfigYamlError(yaml_path, BoardConfigYamlError.REASON_YAML_SYNTAX, str(e)) from e
-
-    if data is None:
-        return {}
-    if not isinstance(data, dict):
-        raise BoardConfigYamlError(yaml_path, BoardConfigYamlError.REASON_NOT_A_MAPPING, type(data).__name__)
-    return data
+    return load_config_yaml_with_includes(yaml_path, amend_plan) or {}

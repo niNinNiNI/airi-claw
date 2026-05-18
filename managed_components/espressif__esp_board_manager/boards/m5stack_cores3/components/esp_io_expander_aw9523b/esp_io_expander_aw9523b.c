@@ -11,12 +11,12 @@
 #include "esp_io_expander_aw9523b.h"
 
 /* I2C communication related */
-#define I2C_TIMEOUT_MS (1000)
-#define I2C_CLK_SPEED  (400000)
+#define I2C_TIMEOUT_MS  (1000)
+#define I2C_CLK_SPEED   (400000)
 
 /* Default register value on power-up */
-#define DIR_REG_DEFAULT_VAL (0x0000)
-#define OUT_REG_DEFAULT_VAL (0x0000)
+#define DIR_REG_DEFAULT_VAL  (0x0000)
+#define OUT_REG_DEFAULT_VAL  (0x0000)
 
 static char *TAG = "AW9523B";
 

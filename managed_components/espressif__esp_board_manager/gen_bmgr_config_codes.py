@@ -47,6 +47,16 @@ from generators.utils.board_schema_version import (
     resolved_board_info_version_string,
 )
 from generators.utils.yaml_utils import BoardConfigYamlError
+from generators.sdkconfig_manager import SDKCONFIG_DEFAULTS_BOARD_FILE
+from generators.amend import (
+    AmendError,
+    AmendPlan,
+    MANIFEST_FILENAME as AMEND_MANIFEST_FILENAME,
+    build_amend_plan,
+)
+
+
+KCONFIG_PROJBUILD_FILE = 'Kconfig.projbuild'
 
 
 class BoardConfigGenerator(LoggerMixin):
@@ -66,10 +76,98 @@ class BoardConfigGenerator(LoggerMixin):
 
 '''
 
-    def __init__(self, script_dir: Path, project_dir: Optional[str] = None):
+    def __init__(self, script_dir: Path, project_dir: Optional[str] = None, amend_dir: Optional[str] = None):
         super().__init__()
         self.script_dir = script_dir
         self.project_dir = normalize_project_dir(project_dir)
+        self.amend_dir_raw = amend_dir          # Original CLI string (may be relative)
+        self.amend_dir: Optional[Path] = None   # Absolute, normalized after resolve_amend_path()
+        self.amend_plan: Optional[AmendPlan] = None
+
+        # Initialize all sub-components (version display, root_dir, parsers, etc.)
+        self._init_components()
+
+    def resolve_amend_path(self, board_path: Optional[str] = None) -> bool:
+        """Resolve the ``-a/--amend`` directory and build the :class:`AmendPlan`.
+
+        Resolution order for relative paths:
+
+        1. As-is (``project_dir`` joined when set)
+        2. Relative to ``cwd``
+        3. ``<board_path>/<raw>`` (allows short names like ``-a my_amend``)
+
+        The first candidate that points to a directory containing
+        ``board_amend.yaml`` wins. Any error during manifest parsing aborts the
+        generation **before** the output directory is cleared.
+
+        Returns ``True`` if there is no ``-a`` argument or the plan was built
+        successfully; ``False`` otherwise.
+        """
+        if not self.amend_dir_raw:
+            return True
+
+        raw = self.amend_dir_raw
+        raw_path = Path(raw).expanduser()
+        candidates: List[Path] = []
+        if raw_path.is_absolute():
+            candidates.append(raw_path)
+        else:
+            if self.project_dir:
+                candidates.append(Path(self.project_dir) / raw_path)
+            candidates.append(Path.cwd() / raw_path)
+            if board_path:
+                candidates.append(Path(board_path) / raw_path)
+
+        seen = set()
+        chosen: Optional[Path] = None
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            key = str(resolved)
+            if key in seen:
+                continue
+            seen.add(key)
+            if not resolved.exists():
+                continue
+            if not resolved.is_dir():
+                self.logger.error(
+                    f'❌ Amend path must be a directory, got file: {resolved}'
+                )
+                return False
+            if not (resolved / AMEND_MANIFEST_FILENAME).is_file():
+                continue
+            chosen = resolved
+            break
+
+        if chosen is None:
+            tried = ', '.join(str(c) for c in candidates)
+            self.logger.error(
+                f'❌ Amend path not found or missing {AMEND_MANIFEST_FILENAME}: '
+                f'{raw} (tried: {tried})'
+            )
+            return False
+
+        try:
+            self.amend_plan = build_amend_plan(
+                chosen, project_root=Path(self.project_dir) if self.project_dir else None
+            )
+        except AmendError as exc:
+            self.logger.error(f'❌ {exc}')
+            return False
+
+        self.amend_dir = chosen
+        self.logger.info(f'ℹ️  Amend mode: {chosen}')
+        if self.amend_plan.description:
+            self.logger.debug(f'   Amend description: {self.amend_plan.description}')
+        self.logger.debug(
+            f'   Amend plan: {len(self.amend_plan.fragments)} fragment(s); '
+            f'{len(self.amend_plan.sdkconfig_sources())} sdkconfig source(s), '
+            f'{len(self.amend_plan.kconfig_sources())} Kconfig source(s)'
+        )
+        return True
+
+    def _init_components(self):
+        """Initialize all sub-components. Called from __init__ after basic setup."""
+        script_dir = self.script_dir
 
         # Display version information when creating the generator
         version_info = self.get_version_info()
@@ -182,21 +280,22 @@ class BoardConfigGenerator(LoggerMixin):
 
 """
 
-        # Add sub_type configurations if they exist
+        # Keep sub-type symbols globally visible so component-manager `matches`
+        # expressions can reference them even when the parent device stays `n`.
         if sub_types:
-            entry += f"""if {macro_name}
-
-"""
             for sub_type in sub_types:
                 sub_macro_name = f'ESP_BOARD_{prefix}_{name.upper()}{sub_type_separator}{sub_type.upper()}_SUPPORT'
-                entry += f"""    config {sub_macro_name}
-        bool "{component_type} '{name}' {sub_type} sub-type support"
-        help
-            Enable {name} {sub_type} sub-type support.
-            This option enables the {name} {sub_type} sub-type driver.
-
-"""
-            entry += f"""endif
+                special_case_without_depends = (
+                    is_device
+                    and name == 'display_lcd'
+                    and sub_type == 'rgb_3wire_spi'
+                )
+                depends_on_line = '' if special_case_without_depends else f'    depends on {macro_name}\n'
+                entry += f"""config {sub_macro_name}
+    bool "{component_type} '{name}' {sub_type} sub-type support"
+{depends_on_line}    help
+        Enable {name} {sub_type} sub-type support.
+        This option enables the {name} {sub_type} sub-type driver.
 
 """
 
@@ -357,7 +456,28 @@ class BoardConfigGenerator(LoggerMixin):
             traceback.print_exc()
             return False
 
-    def generate_selected_board_kconfig_projbuild(self, selected_board=None, project_root=None):
+    def _collect_extra_kconfig_projbuilds(self, board_path=None):
+        """Collect extra ``Kconfig.projbuild`` files in append order.
+
+        Order (each entry is ``(label, path)``):
+            1. base board's ``Kconfig.projbuild`` (if present)
+            2. every amend-plan dir-item's ``Kconfig.projbuild`` (manifest order)
+            3. amend top-level ``Kconfig.projbuild`` (highest)
+        """
+        extra_kconfigs = []
+
+        if board_path:
+            board_kconfig = Path(board_path) / KCONFIG_PROJBUILD_FILE
+            if board_kconfig.is_file():
+                extra_kconfigs.append(('Board', board_kconfig))
+
+        if self.amend_plan is not None:
+            for label, path in self.amend_plan.kconfig_sources():
+                extra_kconfigs.append((label, path))
+
+        return extra_kconfigs
+
+    def generate_selected_board_kconfig_projbuild(self, selected_board=None, project_root=None, board_path=None):
         """Generate project-side Kconfig symbols for the currently selected board."""
         if not project_root:
             self.logger.warning('⚠️  project_root not set, skipping selected-board Kconfig.projbuild generation')
@@ -381,6 +501,21 @@ class BoardConfigGenerator(LoggerMixin):
         kconfig_content += 'config ESP_BOARD_NAME\n'
         kconfig_content += '    string\n'
         kconfig_content += f'    default "{selected_board}"\n'
+
+        for label, kconfig_path in self._collect_extra_kconfig_projbuilds(board_path):
+            try:
+                extra_content = kconfig_path.read_text(encoding='utf-8').strip()
+            except Exception as e:
+                self.logger.error(f'❌ Error reading {label} Kconfig.projbuild: {e}')
+                return False
+            if not extra_content:
+                self.logger.debug(f'   Skipping empty {label} Kconfig.projbuild: {kconfig_path}')
+                continue
+
+            kconfig_content += f'\n\n# --- {label} Kconfig.projbuild: {kconfig_path} ---\n'
+            kconfig_content += extra_content
+            kconfig_content += '\n'
+            self.logger.info(f'✅ Appended {label} Kconfig.projbuild from {kconfig_path}')
 
         # Write the file
         os.makedirs(gen_bmgr_codes_dir, exist_ok=True)
@@ -829,8 +964,8 @@ class BoardConfigGenerator(LoggerMixin):
     def process_peripherals(self, periph_yaml_path: str) -> tuple:
         """Process peripherals from YAML and generate C configuration files, returns peripherals dict, name map, and types"""
         self.logger.debug('   Parsing peripheral YAML file...')
-        peripherals = self.peripheral_parser.parse_peripherals_yaml_legacy(periph_yaml_path)
         self._last_peripheral_metadata_artifacts = []
+        peripherals = self.peripheral_parser.parse_peripherals_yaml_legacy(periph_yaml_path, amend_plan=self.amend_plan)
 
         # Flatten the list of peripherals to handle nested lists
         self.logger.debug('   📋 Flattening peripheral configurations...')
@@ -932,7 +1067,9 @@ class BoardConfigGenerator(LoggerMixin):
         self.logger.debug(f"   Debug: peripherals_dict keys: {list(peripherals_dict.keys()) if peripherals_dict else 'None'}")
 
         try:
-            devices = self.device_parser.parse_devices_yaml_legacy(dev_yaml_path, peripherals_dict)
+            devices = self.device_parser.parse_devices_yaml_legacy(
+                dev_yaml_path, peripherals_dict, amend_plan=self.amend_plan
+            )
         except ValueError as e:
             # The error message is already logged by device_parser, just re-raise to stop
             raise  # Re-raise the exception to stop the generation process
@@ -962,8 +1099,8 @@ class BoardConfigGenerator(LoggerMixin):
                         device_subtypes[d.type] = set()
                     device_subtypes[d.type].add(d.sub_type)
 
-        from generators.device_parser import load_yaml_with_includes
-        dev_yml = load_yaml_with_includes(dev_yaml_path)
+        from generators.utils.config_utils import load_yaml_with_includes
+        dev_yml = load_yaml_with_includes(dev_yaml_path, amend_plan=self.amend_plan) or {}
         raw_devices_by_name = {}
         raw_devices = dev_yml.get('devices') or []
         for dev in raw_devices:
@@ -1379,14 +1516,27 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             selected_board = self.config_generator.get_selected_board_from_sdkconfig()
             self.logger.info(f'✅ Selected board from sdkconfig: {selected_board}')
 
+        board_path = all_boards.get(selected_board)
+
         # Display board information
-        if selected_board in all_boards:
-            board_path = all_boards[selected_board]
+        if board_path:
             self.logger.info(f'✅ Board path: {board_path}')
             # Check for board name consistency (moved from scan phase)
             self.config_generator.check_board_name_consistency(board_path, selected_board)
         else:
             self.logger.warning(f"⚠️  Warning: Selected board '{selected_board}' not found in scanned boards")
+
+        # Set board path for global board utilities and resolve amend plan before any cleanup.
+        if board_path:
+            from generators.utils.board_utils import set_board_path
+            set_board_path(board_path)
+            self.logger.debug(f'   Set global board path: {board_path}')
+
+        # Resolve -a amend path now that board_path is known. Failure must abort
+        # before clearing generated files so a bad manifest does not destroy the
+        # last good output.
+        if not self.resolve_amend_path(board_path):
+            return False
 
         current_board = None
         sdkconfig_preserved_same_board = False
@@ -1464,13 +1614,6 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         device_types = set()
         device_subtypes = {}  # Initialize device_subtypes
 
-        # Set board path for global board utilities
-        board_path = all_boards.get(selected_board) if selected_board in all_boards else None
-        if board_path:
-            from generators.utils.board_utils import set_board_path
-            set_board_path(board_path)
-            self.logger.debug(f'   Set global board path: {board_path}')
-
         if not args.devices_only:
             self.logger.info('⚙️  Step 4/8: Processing peripherals...')
             try:
@@ -1491,7 +1634,10 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
                 self.logger.info('⚙️  Step 4/8: Processing peripherals... (LOADING FOR REFERENCE)')
                 self.logger.info('   4.1 Loading peripherals for device reference...')
                 try:
-                    peripherals = self.peripheral_parser.parse_peripherals_yaml_legacy(periph_yaml_path)
+                    peripherals = self.peripheral_parser.parse_peripherals_yaml_legacy(
+                        periph_yaml_path,
+                        amend_plan=self.amend_plan,
+                    )
                     periph_name_map = {}
                     for p in peripherals:
                         try:
@@ -1530,7 +1676,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             # Extract dependencies from board_devices.yaml
             self.logger.debug('   Extracting device dependencies...')
             try:
-                device_dependencies = self.dependency_manager.extract_device_dependencies(dev_yaml_path)
+                device_dependencies = self.dependency_manager.extract_device_dependencies(dev_yaml_path, amend_plan=self.amend_plan)
             except BoardConfigYamlError as e:
                 self.logger.error(f'❌ Board YAML error (devices), aborting: {e}')
                 return False
@@ -1571,7 +1717,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             return False
 
         # Generate project-side Kconfig definitions for the selected board.
-        if not self.generate_selected_board_kconfig_projbuild(selected_board, project_root):
+        if not self.generate_selected_board_kconfig_projbuild(selected_board, project_root, board_path):
             self.logger.error('❌ Error: Selected-board Kconfig.projbuild generation failed!')
             return False
 
@@ -1699,6 +1845,19 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             self.logger.info(f'✅ Generated board-specific defaults to {board_manager_defaults_file}')
             self.logger.debug(f'   The file will be automatically applied when compilation occurs')
 
+        # If an amend plan is active, append each amend-supplied sdkconfig.defaults.board
+        # in priority order (per-dir-item entries first, amend top-level last).
+        # Each later append marks earlier same-symbol entries via BMGR_CONFIG_OVERRIDE.
+        if self.amend_plan is not None:
+            for label, source_path in self.amend_plan.sdkconfig_sources():
+                append_result = self.sdkconfig_manager.append_sdkconfig_defaults_file(
+                    output_file=board_manager_defaults_file,
+                    section_title=label,
+                    source_path=str(source_path),
+                )
+                if append_result.get('added'):
+                    self.logger.info(f'✅ Appended amend {SDKCONFIG_DEFAULTS_BOARD_FILE} from {source_path}')
+
         # 8. Write board information and setup components/gen_bmgr_codes
         self.logger.info('⚙️  Step 8/8: Writing board information and setting up components...')
 
@@ -1768,8 +1927,19 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
                 self.logger.warning(f'⚠️  Failed to create .gitignore: {e}')
 
             # 2. Create CMakeLists.txt with board source paths
-            # Get board source files and create SRC_DIRS list
-            board_src_dirs = []
+            # Strategy:
+            # - SRC_DIRS scans "." (generated .c) and the base board directory.
+            #   ESP-IDF's idf_component_register IGNORES SRC_DIRS entirely when
+            #   SRCS is also supplied, so amend-supplied sources MUST be added
+            #   after the register call via target_sources() — otherwise the
+            #   generated gen_board_*.c files would not be compiled.
+            # - target_sources() lists every C/C++ source explicitly referenced
+            #   by the amend manifest (no directory scan, so we don't pick up
+            #   unrelated .c files that might live in fragment dirs).
+            # - INCLUDE_DIRS contains the base board dir, the amend directory
+            #   itself, every amend fragment's parent directory, and every
+            #   amend dir-item (deduplicated).
+            board_src_dirs: List[str] = []
             if board_path and os.path.exists(board_path):
                 # Calculate relative path from gen_bmgr_codes to board directory
                 board_relative_path = os.path.relpath(board_path, gen_bmgr_codes_dir)
@@ -1778,9 +1948,48 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
                 board_src_dirs.append(f'"{board_relative_path}"')
                 self.logger.info(f'   Added board source directory: {board_relative_path}')
 
-            # Create SRC_DIRS and INCLUDE_DIRS strings
-            src_dirs_str = ' '.join(['"."'] + board_src_dirs) if board_src_dirs else '"."'
-            include_dirs_str = ' '.join(['"."'] + board_src_dirs) if board_src_dirs else '"."'
+            amend_srcs: List[str] = []
+            amend_include_dirs: List[str] = []
+            if self.amend_plan is not None:
+                # Explicit sources (target_sources): every source-typed amend fragment.
+                seen_src_keys = set()
+                for frag in self.amend_plan.source_fragments():
+                    abs_path = frag.resolved_path
+                    rel = os.path.relpath(str(abs_path), gen_bmgr_codes_dir)
+                    rel = Path(rel).as_posix()
+                    key = str(abs_path.resolve())
+                    if key in seen_src_keys:
+                        continue
+                    seen_src_keys.add(key)
+                    amend_srcs.append(f'    # apply[{frag.item_index}]: {frag.raw_item}\n    "{rel}"')
+                    self.logger.info(f'   Added amend source: apply[{frag.item_index}] -> {rel}')
+
+                # INCLUDE_DIRS from amend plan: header parents + dir items + amend root.
+                seen_inc_keys = set()
+                for inc_dir in self.amend_plan.include_dirs():
+                    rel = os.path.relpath(str(inc_dir), gen_bmgr_codes_dir)
+                    rel = Path(rel).as_posix()
+                    key = str(Path(inc_dir).resolve())
+                    if key in seen_inc_keys:
+                        continue
+                    seen_inc_keys.add(key)
+                    amend_include_dirs.append(f'"{rel}"')
+
+            src_dirs_tokens = ['"."'] + board_src_dirs
+            include_dirs_tokens = ['"."'] + board_src_dirs + amend_include_dirs
+            src_dirs_str = ' '.join(src_dirs_tokens)
+            include_dirs_str = ' '.join(include_dirs_tokens)
+
+            target_sources_block = ''
+            if amend_srcs:
+                target_sources_block = (
+                    '\n# Amend-supplied sources, added after idf_component_register because '
+                    'specifying\n# SRCS there would suppress the SRC_DIRS scan and drop the '
+                    'generated gen_board_*.c files.\n'
+                    'target_sources(${COMPONENT_LIB} PRIVATE\n'
+                    + '\n'.join(amend_srcs)
+                    + '\n)\n'
+                )
 
             # Add board information output to CMakeLists.txt
             board_info_output = ''
@@ -1799,7 +2008,7 @@ message(STATUS "Board Path: {board_path if board_path else 'Not specified'}")
 
 # This is equivalent to adding WHOLE_ARCHIVE option to the idf_component_register call above:
 idf_component_set_property(${{COMPONENT_NAME}} WHOLE_ARCHIVE TRUE)
-"""
+{target_sources_block}"""
 
             cmakelists_path = os.path.join(gen_bmgr_codes_dir, 'CMakeLists.txt')
             with open(cmakelists_path, 'w', encoding='utf-8') as f:
@@ -1868,7 +2077,7 @@ def resolve_board_name_or_index(board_input: str, all_boards: dict, generator, b
     """Resolve board name from input (board name or index number)
 
     Args:
-        board_input: Board name or index number (as string)
+        board_input: Board name, index number, or board directory path (as string)
         all_boards: Dictionary of all available boards
         generator: BoardConfigGenerator instance (for boards_dir access)
         board_customer_path: Optional customer boards path
@@ -1876,6 +2085,43 @@ def resolve_board_name_or_index(board_input: str, all_boards: dict, generator, b
     Returns:
         Board name or None if not found
     """
+    # 0. Check if input is a valid board directory path (absolute or relative).
+    # Relative direct-board paths are resolved against cwd first for legacy behavior,
+    # then against the generator project root so --project-dir is honored consistently.
+    board_path_candidates = [Path(board_input).expanduser()]
+    if not board_path_candidates[0].is_absolute():
+        project_dir = getattr(generator, 'project_dir', None)
+        if project_dir:
+            board_path_candidates.append(Path(project_dir) / board_path_candidates[0])
+
+    seen_board_paths = set()
+    for candidate in board_path_candidates:
+        abs_path = str(candidate.resolve())
+        if abs_path in seen_board_paths:
+            continue
+        seen_board_paths.add(abs_path)
+        if not os.path.isdir(abs_path):
+            continue
+        if generator.config_generator._is_board_directory(abs_path):
+            # Try to get board name from board_info.yaml
+            board_info_path = os.path.join(abs_path, 'board_info.yaml')
+            board_name = None
+            if os.path.exists(board_info_path):
+                try:
+                    with open(board_info_path, 'r', encoding='utf-8') as f:
+                        board_yml = yaml.safe_load(f)
+                        board_name = board_yml.get('board')
+                except Exception:
+                    pass
+
+            # Fallback to directory name if YAML is invalid or board name is not found
+            if not board_name:
+                # Use normpath to ensure basename returns the directory name even if there is a trailing slash
+                board_name = os.path.basename(os.path.normpath(abs_path))
+
+            # Register in all_boards so subsequent resolution can find it
+            all_boards[board_name] = abs_path
+            return board_name
     # Check if input is a number
     if board_input.isdigit():
         board_idx = int(board_input)
@@ -1924,7 +2170,10 @@ Examples:
     python gen_bmgr_config_codes.py 1                                 # Specify board by index number
     python gen_bmgr_config_codes.py -b esp_vocat_board_v1_0        # Specify board using -b parameter (auto-sets CONFIG_IDF_TARGET)
     python gen_bmgr_config_codes.py -b 1                              # Specify board by index number using -b
+    python gen_bmgr_config_codes.py 1 -c /custom/boards               # Specify board with custom boards directory
     python gen_bmgr_config_codes.py -b my_board -c /custom/boards     # Both -b and -c options
+    python gen_bmgr_config_codes.py -b ./myboard                      # Specify board by relative path
+    python gen_bmgr_config_codes.py -b /absolute/path/to/board        # Specify board by absolute path
     python gen_bmgr_config_codes.py --peripherals-only                # Only process peripherals
     python gen_bmgr_config_codes.py --devices-only                    # Only process devices
     python gen_bmgr_config_codes.py --kconfig-only                    # Generate Kconfig menu system (default enabled)
@@ -1937,13 +2186,13 @@ Examples:
     parser.add_argument(
         'board',
         nargs='?',
-        help='Board name or index number (bypasses sdkconfig reading)'
+        help='Board name, index number, or directory path (bypasses sdkconfig reading)'
     )
 
     parser.add_argument(
         '-b', '--board',
         dest='board_name',
-        help='Specify board name or index number (bypasses sdkconfig reading, overrides positional argument)'
+        help='Specify board name, index number, or directory path (bypasses sdkconfig reading, overrides positional argument)'
     )
 
     parser.add_argument(
@@ -2002,6 +2251,16 @@ Examples:
         help='Clean generated .c and .h files, and reset CMakeLists.txt and idf_component.yml'
     )
 
+    parser.add_argument(
+        '-a', '--amend',
+        dest='amend_dir',
+        help=(
+            'Path to an amend directory containing a board_amend.yaml manifest. '
+            'The manifest declares an ordered list of fragments (YAML / C / directory) to '
+            'apply on top of the selected board; later entries override earlier ones.'
+        ),
+    )
+
     args = parser.parse_args()
 
     # Merge positional argument with -b parameter (priority: -b > positional)
@@ -2039,7 +2298,7 @@ Examples:
 
     # Create generator and run
     script_dir = Path(__file__).parent
-    generator = BoardConfigGenerator(script_dir, project_dir=project_dir)
+    generator = BoardConfigGenerator(script_dir, project_dir=project_dir, amend_dir=args.amend_dir)
 
     # Handle clean option
     if args.clean:
@@ -2160,8 +2419,14 @@ Examples:
         print('⚠️  Operation cancelled by user')
         sys.exit(1)
     except ValueError as e:
-        # Show the detailed error message
+        # Surface the friendly one-liner first; print the full traceback only
+        # under --log-level DEBUG so users running into parser/value errors
+        # (e.g. ``int('20*800')`` from a malformed amend YAML) can locate the
+        # exact frame without being drowned in stack noise by default.
         print(f'❌ {e}')
+        if args.log_level == 'DEBUG':
+            import traceback
+            traceback.print_exc()
         sys.exit(1)
     except Exception as e:
         generator.logger.error(f'Unexpected error: {e}')

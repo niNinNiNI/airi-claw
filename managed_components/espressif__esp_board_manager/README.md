@@ -358,8 +358,9 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 
 **Board Selection and Discovery:**
 ```bash
--b, --board BOARD                # Board name or index
+-b, --board BOARD                # Board name, index, or board directory path
 -c, --customer-path PATH         # Custom boards directory (supports one or more paths)
+-a, --amend DIR                  # Apply an amend directory on top of the selected board (must contain board_amend.yaml)
 -l, --list-boards                # List all available boards and exit
 -n, --new-board ARG              # Create a new board (idf.py action only)
 [BOARD]                          # Specify board name or index directly (standalone script only)
@@ -397,6 +398,9 @@ idf.py bmgr -b 1
 
 # Use custom board
 idf.py bmgr -b my_board -c /path/to/custom/boards
+
+# Apply an amend on top of an existing board (the directory must contain board_amend.yaml)
+idf.py bmgr -b esp32_s3_korvo2_v3 -a path/to/my_amend
 
 # Create a new board in the default components directory
 idf.py bmgr -n my_new_board

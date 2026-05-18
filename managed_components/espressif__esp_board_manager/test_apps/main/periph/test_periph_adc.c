@@ -24,13 +24,13 @@
 #include "periph_adc.h"
 
 #if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S2
-#define EXAMPLE_ADC_OUTPUT_TYPE         ADC_DIGI_OUTPUT_FORMAT_TYPE1
-#define EXAMPLE_ADC_GET_CHANNEL(p_data) ((p_data)->type1.channel)
-#define EXAMPLE_ADC_GET_DATA(p_data)    ((p_data)->type1.data)
+#define EXAMPLE_ADC_OUTPUT_TYPE          ADC_DIGI_OUTPUT_FORMAT_TYPE1
+#define EXAMPLE_ADC_GET_CHANNEL(p_data)  ((p_data)->type1.channel)
+#define EXAMPLE_ADC_GET_DATA(p_data)     ((p_data)->type1.data)
 #else
-#define EXAMPLE_ADC_OUTPUT_TYPE         ADC_DIGI_OUTPUT_FORMAT_TYPE2
-#define EXAMPLE_ADC_GET_CHANNEL(p_data) ((p_data)->type2.channel)
-#define EXAMPLE_ADC_GET_DATA(p_data)    ((p_data)->type2.data)
+#define EXAMPLE_ADC_OUTPUT_TYPE          ADC_DIGI_OUTPUT_FORMAT_TYPE2
+#define EXAMPLE_ADC_GET_CHANNEL(p_data)  ((p_data)->type2.channel)
+#define EXAMPLE_ADC_GET_DATA(p_data)     ((p_data)->type2.data)
 #endif  /* CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S2 */
 
 static const char *TAG = "TEST_ADC";

@@ -184,9 +184,6 @@ class ConfigGenerator(LoggerMixin):
                         self.logger.warning(
                             f'⚠️  Skipping invalid board "{d}" in main directory - missing required files: {", ".join(missing_files)}'
                         )
-                # Check for board name consistency
-                # Moved to post-selection phase
-                # self.check_board_name_consistency(str(board_path), d)
 
         # 2. Scan components boards directories (recursive scan)
         # Get project root first, then check if components exists

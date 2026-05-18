@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.5.11
+
+### ⚠️ Important Changes
+
+- Added `-a/--amend` for board generation. The new mode requires a directory containing a `board_amend.yaml` manifest. Every file that should participate — YAML fragments, C sources, headers, `sdkconfig.defaults.board`, `Kconfig.projbuild` — must be listed explicitly in the `apply:` list. There is **no auto-discovery and no directory items**; the manifest is the single source of truth. Later list entries override earlier ones.
+- Added support for `gen_skip` keywords, Configuring `gen_skip` for unused devices/peripherals in the amend file will skip the parsing and generation of those devices/peripherals during the board manager's build phase. Users need to be aware of dependencies and potential compilation issues.
+- Added sdkconfig default override marking: when a later defaults source sets the same `CONFIG_` symbol, the earlier active line is commented with `BMGR_CONFIG_OVERRIDE`.
+
+### Features
+
+- Appended sdkconfig defaults in deterministic order: generated Board Manager defaults, base-board `sdkconfig.defaults.board`, then every `apply:` entry whose basename is `sdkconfig.defaults.board` (in manifest order).
+- Appended `Kconfig.projbuild` in the same order: generated section, base-board `Kconfig.projbuild`, then every `apply:` entry whose basename is `Kconfig.projbuild`.
+- Added schema validation helpers for board device/peripheral YAML fields, including warnings for unsupported fields.
+- Added support for **esp32_s31_function_coreboard_1** board, supported devices includes:
+  Codec and LED Strip
+
+### Docs
+
+- Updated `README.md` / `README_CN.md` and `docs/how_to_customize_board*.md` for the new amend flow.
+
+### Tests
+
+- Added `test_apps/components/test_amend_features/` (plus an out-of-tree `boards/test_amend_features_extra/`) and `test_amend_features_board.py`, covering happy paths and every documented error case.
+
 ## 0.5.10
 
 ### ⚠️ Breaking Change

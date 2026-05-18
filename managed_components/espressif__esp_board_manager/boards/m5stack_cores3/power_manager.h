@@ -32,7 +32,7 @@ typedef enum {
  *         used for controlling power features on the M5Stack CoreS3 board.
  */
 typedef struct {
-    i2c_master_dev_handle_t pm_handle;  /*!< I2C device handle for AXP2101 power management unit */
+    i2c_master_dev_handle_t  pm_handle;  /*!< I2C device handle for AXP2101 power management unit */
 } cores3_power_manager_handle_t;
 
 /**
@@ -70,7 +70,7 @@ int cores3_power_manager_deinit(void *device_handle);
  *
  *         This function enables the specified hardware feature by controlling the AXP2101 power management chip,
  *         providing the required power supply for the corresponding functional module.
- * @note   In cores3, the AW9523B IO expander needs to be initialized before the AXP2101 PMU, because AW9523B is needed when enabling the power
+ * @note  In cores3, the AW9523B IO expander needs to be initialized before the AXP2101 PMU, because AW9523B is needed when enabling the power
  *
  * @param[in]  pm_handle  Pointer to the power manager handle structure
  * @param[in]  feature    Feature to enable (cores3_power_manager_feature_t enumeration value)

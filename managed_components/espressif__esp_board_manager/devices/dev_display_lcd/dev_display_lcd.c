@@ -33,6 +33,9 @@ int dev_display_lcd_sub_parlio_deinit_with_config(void *device_handle, const dev
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
 int dev_display_lcd_sub_rgb_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg);
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
+int dev_display_lcd_sub_rgb_3wire_spi_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg);
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
 
 static const lcd_deinit_with_config_entry_t s_lcd_deinit_entries[] = {
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
@@ -47,6 +50,9 @@ static const lcd_deinit_with_config_entry_t s_lcd_deinit_entries[] = {
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
     {ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB, dev_display_lcd_sub_rgb_deinit_with_config},
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
+    {ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB_3WIRE_SPI, dev_display_lcd_sub_rgb_3wire_spi_deinit_with_config},
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
     {NULL, NULL},
 };
 

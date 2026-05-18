@@ -35,12 +35,20 @@ def _format_family(format_name: Optional[str]) -> Optional[str]:
     return str(format_name).split('-', 1)[0]
 
 
-def _normalize_scalar_io(value: Any) -> Optional[int]:
-    if isinstance(value, bool) or not isinstance(value, int):
+def _normalize_scalar_io(value: Any) -> Optional[Any]:
+    if isinstance(value, bool):
         return None
-    if value < 0:
-        return None
-    return value
+    if isinstance(value, int):
+        if value < 0:
+            return None
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        if value.startswith('GPIO_NUM_') or value.startswith('IO_EXPANDER_PIN_NUM_'):
+            if value in ('GPIO_NUM_NC', 'IO_EXPANDER_PIN_NUM_NC'):
+                return None
+            return value
+    return None
 
 
 def _normalize_io_value(value: Any) -> Optional[Any]:

@@ -234,8 +234,6 @@ static void extract_task(void *arg)
     esp_err_t ret = ESP_OK;
     EventBits_t bits;
 
-    ESP_LOGD(TAG, "Extract task started");
-
     while (1) {
         // Wait for start or stop events
         bits = xEventGroupWaitBits(adapter->extract_event_group,
@@ -243,12 +241,10 @@ static void extract_task(void *arg)
                                    pdFALSE, pdFALSE, portMAX_DELAY);
 
         if (bits & EXTRACT_TASK_STOP_BIT) {
-            ESP_LOGD(TAG, "Extract task received stop signal");
             break;
         }
 
         if (bits & EXTRACT_TASK_START_BIT) {
-            ESP_LOGD(TAG, "Extract task processing frames");
 
             while (1) {
                 // Check for stop signal with minimal timeout
@@ -257,7 +253,6 @@ static void extract_task(void *arg)
                                            pdFALSE, pdFALSE, 0);
 
                 if (bits & EXTRACT_TASK_STOP_BIT) {
-                    ESP_LOGD(TAG, "Extract task stopping frame processing");
                     break;
                 }
 
@@ -265,7 +260,6 @@ static void extract_task(void *arg)
 
                 if (ret != ESP_OK) {
                     if (ret == ESP_ERR_NOT_FOUND) {
-                        ESP_LOGD(TAG, "End of stream reached");
                         adapter->eos_reached = true;
                     } else {
                         ESP_LOGW(TAG, "Failed to read frame: %d", ret);
@@ -278,8 +272,6 @@ static void extract_task(void *arg)
             xEventGroupClearBits(adapter->extract_event_group, EXTRACT_TASK_START_BIT);
         }
     }
-
-    ESP_LOGD(TAG, "Extract task stopped");
 
     // Set stopped bit to indicate task has finished
     xEventGroupSetBits(adapter->extract_event_group, EXTRACT_TASK_STOPPED_BIT);
@@ -323,8 +315,6 @@ static void stop_extract_task(app_stream_adapter_t *adapter)
     if (adapter->extract_task_handle == NULL) {
         return;
     }
-
-    ESP_LOGD(TAG, "Stopping extract task");
 
     // Set stop bit to signal task to stop
     xEventGroupSetBits(adapter->extract_event_group, EXTRACT_TASK_STOP_BIT);
@@ -476,8 +466,6 @@ esp_err_t app_stream_adapter_set_file(app_stream_adapter_handle_t handle,
     adapter->eos_reached = false;
     adapter->extract_audio = extract_audio && (adapter->audio_dev != NULL);
 
-    ESP_LOGD(TAG, "Set media file: %s, extract_audio: %d",
-             filename, adapter->extract_audio);
     return ESP_OK;
 }
 
@@ -498,9 +486,6 @@ esp_err_t app_stream_adapter_start(app_stream_adapter_handle_t handle)
         return ESP_ERR_INVALID_STATE;
     }
 
-    ESP_LOGD(TAG, "Starting playback of %s%s", adapter->filename,
-             adapter->extract_audio ? " with audio" : "");
-
     ret = app_extractor_start(adapter->extractor_handle, adapter->filename,
                               true, adapter->extract_audio);
     if (ret != ESP_OK) {
@@ -517,21 +502,13 @@ esp_err_t app_stream_adapter_start(app_stream_adapter_handle_t handle)
         adapter->fps = fps;
         adapter->duration = duration;
         adapter->has_info = true;
-
-        ESP_LOGD(TAG, "Video info: %" PRIu32 "x%" PRIu32 ", %" PRIu32 " fps, %" PRIu32 " ms",
-                 width, height, fps, duration);
     }
 
     if (adapter->extract_audio) {
         uint32_t sample_rate, duration;
         uint8_t channels, bits;
-
-        ret = app_extractor_get_audio_info(adapter->extractor_handle,
-                                           &sample_rate, &channels, &bits, &duration);
-        if (ret == ESP_OK) {
-            ESP_LOGD(TAG, "Audio info: %" PRIu32 " Hz, %u ch, %u bits, %" PRIu32 " ms",
-                     sample_rate, channels, bits, duration);
-        }
+        app_extractor_get_audio_info(adapter->extractor_handle,
+                                     &sample_rate, &channels, &bits, &duration);
     }
 
     ret = start_extract_task(adapter);
@@ -557,8 +534,6 @@ esp_err_t app_stream_adapter_stop(app_stream_adapter_handle_t handle)
         return ESP_OK;
     }
 
-    ESP_LOGD(TAG, "Stopping playback");
-
     stop_extract_task(adapter);
     app_extractor_stop(adapter->extractor_handle);
 
@@ -574,8 +549,6 @@ esp_err_t app_stream_adapter_seek(app_stream_adapter_handle_t handle, uint32_t p
 
     app_stream_adapter_t *adapter = (app_stream_adapter_t *)handle;
     esp_err_t ret = ESP_OK;
-
-    ESP_LOGD(TAG, "Seeking to position %" PRIu32 " ms", position);
 
     bool was_running = adapter->extract_task_handle != NULL;
     if (was_running) {

@@ -19,7 +19,7 @@ extern "C" {
  * @brief  ADC handle structure
  *
  *         This structure stores the underlying ADC driver handle.
- * @note   For continuous mode the `continuous` member is used, for one-shot mode the `oneshot` member is used.
+ * @note  For continuous mode the `continuous` member is used, for one-shot mode the `oneshot` member is used.
  */
 typedef union {
     adc_continuous_handle_t    continuous;  /*!< Continuous-mode handle */

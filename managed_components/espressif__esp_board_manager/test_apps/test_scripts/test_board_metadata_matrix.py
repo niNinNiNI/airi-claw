@@ -60,7 +60,7 @@ PERIPHERAL_CASES = [
                     'unit_id': 'ADC_UNIT_1',
                     'atten': 'ADC_ATTEN_DB_0',
                     'bit_width': 'ADC_BITWIDTH_DEFAULT',
-                    'channel_id': [4],
+                    'channel_list': [4],
                 },
             }
         ],
@@ -68,7 +68,7 @@ PERIPHERAL_CASES = [
             'type': 'adc',
             'role': 'continuous',
             'io': {
-                'channel_id': [32],
+                'channel_id': [32],   # IO metadata mirrors the C struct field name
             },
         },
     },
@@ -1044,6 +1044,59 @@ DEVICE_CASES = [
                 'de_gpio_num': 43,
                 'pclk_gpio_num': 40,
                 'data_gpio_nums': [8, 9, 10, 11],
+            },
+        },
+    },
+    {
+        'id': 'dev_display_lcd_rgb_3wire_spi',
+        'chip': 'esp32s3',
+        'peripherals': [],
+        'device': {
+            'name': 'display_lcd',
+            'type': 'display_lcd',
+            'sub_type': 'rgb_3wire_spi',
+            'config': {
+                'io_3wire_spi_config': {
+                    'line_config': {
+                        'cs_io_type': 'IO_TYPE_EXPANDER',
+                        'cs_expander_pin': 'IO_EXPANDER_PIN_NUM_1',
+                        'scl_io_type': 'IO_TYPE_EXPANDER',
+                        'scl_expander_pin': 'IO_EXPANDER_PIN_NUM_2',
+                        'sda_io_type': 'IO_TYPE_EXPANDER',
+                        'sda_expander_pin': 'IO_EXPANDER_PIN_NUM_3',
+                    },
+                },
+                'rgb_panel_config': {
+                    'hsync_gpio_num': 44,
+                    'vsync_gpio_num': 45,
+                    'de_gpio_num': 43,
+                    'pclk_gpio_num': 40,
+                    'disp_gpio_num': -1,
+                    'data_gpio_nums': [8, 9, 10, 11],
+                    'timings': {
+                        'h_res': 480,
+                        'v_res': 480,
+                    },
+                },
+                'lcd_panel_config': {
+                    'reset_gpio_num': 12,
+                    'vendor_config': None,
+                },
+            },
+        },
+        'expected': {
+            'type': 'display_lcd',
+            'sub_type': 'rgb_3wire_spi',
+            'io': {
+                'cs_expander_pin': 'IO_EXPANDER_PIN_NUM_1',
+                'scl_expander_pin': 'IO_EXPANDER_PIN_NUM_2',
+                'sda_expander_pin': 'IO_EXPANDER_PIN_NUM_3',
+                'hsync_gpio_num': 44,
+                'vsync_gpio_num': 45,
+                'de_gpio_num': 43,
+                'pclk_gpio_num': 40,
+                'data_gpio_nums': [8, 9, 10, 11],
+                'reset_gpio_num': 12,
             },
         },
     },

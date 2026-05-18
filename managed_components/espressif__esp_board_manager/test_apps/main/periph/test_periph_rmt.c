@@ -21,16 +21,16 @@
 #include "esp_board_manager_defs.h"
 #include "periph_rmt.h"
 
-#define EXAMPLE_LED_NUMBERS       28
-#define EXAMPLE_FRAME_DURATION_MS 10
-#define EXAMPLE_ANGLE_INC_FRAME   0.02
-#define EXAMPLE_ANGLE_INC_LED     0.3
-#define EXAMPLE_TEST_SECONDS      5
+#define EXAMPLE_LED_NUMBERS        28
+#define EXAMPLE_FRAME_DURATION_MS  10
+#define EXAMPLE_ANGLE_INC_FRAME    0.02
+#define EXAMPLE_ANGLE_INC_LED      0.3
+#define EXAMPLE_TEST_SECONDS       5
 
 static const char *TAG = "TEST_RMT";
 
 static uint32_t channel_resolution_hz = 0;
-static uint8_t  led_strip_pixels[EXAMPLE_LED_NUMBERS * 3];
+static uint8_t led_strip_pixels[EXAMPLE_LED_NUMBERS * 3];
 
 static rmt_symbol_word_t ws2812_zero = {
     .level0 = 1,

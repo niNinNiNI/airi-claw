@@ -76,7 +76,7 @@ typedef struct {
     esp_cam_ctlr_dvp_pin_config_t  dvp_io;     /*!< DVP io configuration structure */
     uint32_t                       xclk_freq;  /*!< XCLK frequency in Hz */
 } dev_camera_sub_dvp_cfg;
-#endif /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
+#endif  /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
 
 /**
  * @brief  Camera device configuration structure
@@ -111,9 +111,9 @@ typedef struct {
  *         and additional mate info can be obtained from the meta_path `/dev/video11`.
  */
 typedef struct {
-    const char *dev_path;     /*!< Camera device path or identifier */
-    const char *meta_path;    /*!< Camera metadata path or identifier (if applicable) */
-                              /*!< For csi camera, meta_path is ISP path */
+    const char *dev_path;   /*!< Camera device path or identifier */
+    const char *meta_path;  /*!< Camera metadata path or identifier (if applicable) */
+                            /*!< For csi camera, meta_path is ISP path */
 } dev_camera_handle_t;
 
 /**

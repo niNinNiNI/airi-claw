@@ -65,13 +65,102 @@ def test_adc_continuous_single_unit_accepts_matching_explicit_conv_mode(bmgr_roo
                 'unit_id': 'ADC_UNIT_1',
                 'atten': 'ADC_ATTEN_DB_0',
                 'bit_width': 'ADC_BITWIDTH_DEFAULT',
-                'channel_id': [4],
+                'channel_list': [4],
                 'conv_mode': 'ADC_CONV_SINGLE_UNIT_1',
             },
         },
     )
 
     assert result['struct_init']['cfg']['continuous']['conv_mode'] == 'ADC_CONV_SINGLE_UNIT_1'
+
+
+def test_adc_continuous_single_unit_accepts_legacy_channel_id(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from peripherals.periph_adc import periph_adc as mod
+
+    result = mod.parse(
+        'adc_audio_in',
+        {
+            'role': 'continuous',
+            'config': {
+                'unit_id': 'ADC_UNIT_1',
+                'channel_id': [4],
+            },
+        },
+    )
+
+    single_unit = result['struct_init']['cfg']['continuous']['cfg']['single_unit']
+    assert single_unit['channel_id'] == [4]
+
+
+def test_adc_continuous_single_unit_rejects_channel_list_and_legacy_channel_id(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from peripherals.periph_adc import periph_adc as mod
+
+    with pytest.raises(ValueError, match='channel_list.*legacy.*channel_id'):
+        mod.parse(
+            'adc_audio_in',
+            {
+                'role': 'continuous',
+                'config': {
+                    'unit_id': 'ADC_UNIT_1',
+                    'channel_list': [4],
+                    'channel_id': [4],
+                },
+            },
+        )
+
+
+def test_adc_schema_demotes_cross_role_fields_to_debug(bmgr_root, caplog):
+    """Cross-role config keys (e.g. oneshot's `channel_id` in a continuous ADC)
+    must NOT surface as user-facing WARNINGs — they are part of the type-wide
+    union of valid ADC keys, so :class:`PeripheralSchemaValidator` reports
+    them via a debug log instead. This avoids noisy false positives when an
+    amend swaps role and keeps real typos visible as WARNINGs.
+    """
+    import logging
+
+    sys.path.insert(0, str(bmgr_root))
+    from generators.schema_validator import PeripheralSchemaValidator
+
+    validator = PeripheralSchemaValidator(bmgr_root / 'peripherals')
+
+    # `channel_id` belongs to oneshot's role-specific schema; supplying it for
+    # role=continuous used to raise a WARNING. With the unified type-wide
+    # validation policy we demote it to a debug log on the validator's logger.
+    with caplog.at_level(logging.DEBUG, logger=validator.logger.name):
+        continuous_issues = validator.validate_config(
+            'adc',
+            {'unit_id': 'ADC_UNIT_1', 'channel_id': [4]},
+            'adc_audio_in',
+            role='continuous',
+        )
+    assert continuous_issues == []
+    debug_msgs = [r.getMessage() for r in caplog.records
+                  if r.levelno == logging.DEBUG and 'channel_id' in r.getMessage()]
+    assert debug_msgs, (
+        f'Expected a debug message mentioning channel_id, got records: '
+        f'{[(r.levelname, r.getMessage()) for r in caplog.records]}'
+    )
+
+    # `channel_id` is legitimate for role=oneshot — no warning, no demotion.
+    oneshot_issues = validator.validate_config(
+        'adc',
+        {'unit_id': 'ADC_UNIT_1', 'channel_id': 4},
+        'adc_oneshot',
+        role='oneshot',
+    )
+    assert oneshot_issues == []
+
+    # A genuinely unknown key (in neither role's schema) must still WARN with a fuzzy suggestion.
+    typo_issues = validator.validate_config(
+        'adc',
+        {'unit_id': 'ADC_UNIT_1', 'channel_id_typoz': [4]},
+        'adc_typoz',
+        role='continuous',
+    )
+    assert len(typo_issues) == 1
+    assert typo_issues[0].key_path == 'channel_id_typoz'
 
 def test_adc_channel_mapper_rejects_zero_unit_string(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
@@ -428,6 +517,61 @@ def test_display_lcd_rgb_idf5_rejects_user_fbs_func(bmgr_root, monkeypatch):
             },
         )
 
+def test_display_lcd_rgb_3wire_spi_parses_line_unions_and_reuses_rgb_config(bmgr_root, monkeypatch):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_display_lcd import dev_display_lcd as mod
+
+    monkeypatch.setattr(mod, 'get_idf_version', lambda: (5, 5, 0))
+
+    result = mod.parse(
+        'display_lcd',
+        {
+            'name': 'display_lcd',
+            'type': 'display_lcd',
+            'sub_type': 'rgb_3wire_spi',
+            'config': {
+                'io_3wire_spi_config': {
+                    'io_expander_name': 'io_expander',
+                    'line_config': {
+                        'cs_io_type': 'IO_TYPE_EXPANDER',
+                        'cs_expander_pin': 1,
+                        'cs_gpio_num': 99,
+                        'scl_io_type': 'IO_TYPE_GPIO',
+                        'scl_gpio_num': 2,
+                        'sda_io_type': 'IO_TYPE_GPIO',
+                        'sda_gpio_num': 3,
+                    },
+                },
+                'rgb_panel_config': {
+                    'data_gpio_nums': [8, 9, 10, 11],
+                    'timings': {
+                        'h_res': 480,
+                        'v_res': 480,
+                    },
+                },
+                'lcd_panel_config': {
+                    'vendor_config': 'auto',
+                    'auto_del_panel_io': True,
+                },
+            },
+        },
+    )
+
+    cfg = result['struct_init']['sub_cfg']['rgb_3wire_spi']
+    line_config = cfg['io_3wire_spi_config']['line_config']
+    assert cfg['io_expander_name'] == 'io_expander'
+    assert line_config['cs_io_type'] == 'IO_TYPE_EXPANDER'
+    assert line_config['cs_expander_pin'] == 1
+    assert 'cs_gpio_num' not in line_config
+    assert line_config['scl_gpio_num'] == 2
+    assert line_config['sda_gpio_num'] == 3
+    assert line_config['io_expander'] is None
+    assert cfg['rgb_panel_config']['data_gpio_nums'] == [8, 9, 10, 11]
+    assert cfg['panel_config']['vendor_config'] is None
+    assert cfg['auto_del_panel_io'] is True
+    assert result['struct_init']['lcd_width'] == 480
+    assert result['struct_init']['lcd_height'] == 480
+
 def test_lcd_touch_i2c_uses_8bit_addrs_and_i2c_sub_config(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from devices.dev_lcd_touch import dev_lcd_touch as mod
@@ -598,6 +742,88 @@ def test_generate_selected_board_kconfig_projbuild_defines_current_board_only(bm
     assert '    bool\n    default y' in projbuild_content
     assert 'config ESP_BOARD_NAME' in projbuild_content
     assert f'    default "{selected_board}"' in projbuild_content
+
+
+def test_generate_selected_board_kconfig_projbuild_appends_board_and_amend_kconfig(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from gen_bmgr_config_codes import BoardConfigGenerator
+    from generators.amend import AmendPlan, AmendFragment, KIND_KCONFIG_PROJBUILD
+
+    board_dir = tmp_path / 'board'
+    amend_dir = tmp_path / 'amend'
+    board_dir.mkdir()
+    amend_dir.mkdir()
+    (board_dir / 'Kconfig.projbuild').write_text(
+        'menu "board options"\nconfig BOARD_LOCAL_FEATURE\n    bool "Board local feature"\nendmenu\n',
+        encoding='utf-8',
+    )
+    amend_kconfig = amend_dir / 'Kconfig.projbuild'
+    amend_kconfig.write_text(
+        'menu "amend options"\nconfig AMEND_LOCAL_FEATURE\n    bool "Amend local feature"\nendmenu\n',
+        encoding='utf-8',
+    )
+
+    generator = BoardConfigGenerator(bmgr_root)
+    # Inject a minimal AmendPlan whose only fragment is the amend-root
+    # Kconfig.projbuild; this is the same shape build_amend_plan() would
+    # produce for ``apply: [Kconfig.projbuild]``.
+    generator.amend_plan = AmendPlan(
+        amend_dir=amend_dir,
+        manifest_path=amend_dir / 'board_amend.yaml',
+        fragments=[
+            AmendFragment(
+                kind=KIND_KCONFIG_PROJBUILD,
+                resolved_path=amend_kconfig,
+                raw_item='Kconfig.projbuild',
+                item_index=0,
+            ),
+        ],
+    )
+
+    result = generator.generate_selected_board_kconfig_projbuild(
+        selected_board='custom_board',
+        project_root=str(tmp_path),
+        board_path=str(board_dir),
+    )
+
+    assert result is True
+
+    projbuild_path = tmp_path / 'components' / 'gen_bmgr_codes' / 'Kconfig.projbuild'
+    projbuild_content = projbuild_path.read_text(encoding='utf-8')
+
+    assert 'config ESP_BOARD_CUSTOM_BOARD' in projbuild_content
+    assert '# --- Board Kconfig.projbuild:' in projbuild_content
+    assert 'config BOARD_LOCAL_FEATURE' in projbuild_content
+    assert '# --- Amend Kconfig (apply[0] = ' in projbuild_content
+    assert 'config AMEND_LOCAL_FEATURE' in projbuild_content
+    assert projbuild_content.index('config ESP_BOARD_CUSTOM_BOARD') < projbuild_content.index('config BOARD_LOCAL_FEATURE')
+    assert projbuild_content.index('config BOARD_LOCAL_FEATURE') < projbuild_content.index('config AMEND_LOCAL_FEATURE')
+
+
+def test_generate_selected_board_kconfig_projbuild_skips_empty_extra_kconfigs(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from gen_bmgr_config_codes import BoardConfigGenerator
+
+    board_dir = tmp_path / 'board'
+    board_dir.mkdir()
+    (board_dir / 'Kconfig.projbuild').write_text('\n', encoding='utf-8')
+
+    generator = BoardConfigGenerator(bmgr_root)
+
+    result = generator.generate_selected_board_kconfig_projbuild(
+        selected_board='custom_board',
+        project_root=str(tmp_path),
+        board_path=str(board_dir),
+    )
+
+    assert result is True
+
+    projbuild_path = tmp_path / 'components' / 'gen_bmgr_codes' / 'Kconfig.projbuild'
+    projbuild_content = projbuild_path.read_text(encoding='utf-8')
+
+    assert 'config ESP_BOARD_CUSTOM_BOARD' in projbuild_content
+    assert 'Kconfig.projbuild:' not in projbuild_content
+
 
 def test_lyrat_mini_peripheral_generation_keeps_structs_aligned(bmgr_root, tmp_path):
     sys.path.insert(0, str(bmgr_root))

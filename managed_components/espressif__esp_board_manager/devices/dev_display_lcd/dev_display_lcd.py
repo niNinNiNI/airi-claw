@@ -32,6 +32,21 @@ DEV_DISPLAY_LCD_IO_LIST = {
         'disp_gpio_num',
         'data_gpio_nums',
     ],
+    'rgb_3wire_spi': [
+        'cs_gpio_num',
+        'cs_expander_pin',
+        'scl_gpio_num',
+        'scl_expander_pin',
+        'sda_gpio_num',
+        'sda_expander_pin',
+        'hsync_gpio_num',
+        'vsync_gpio_num',
+        'de_gpio_num',
+        'pclk_gpio_num',
+        'disp_gpio_num',
+        'data_gpio_nums',
+        'reset_gpio_num',
+    ],
 }
 
 def _iter_peripheral_names(peripherals_list):
@@ -381,6 +396,65 @@ def parse_rgb_sub_config(full_config: dict = None, peripherals_dict=None) -> dic
         'panel_config': panel_config,
     }
 
+def _parse_3wire_spi_line_config(line_config: dict) -> dict:
+    """Parse spi_line_config_t, emitting only the active union member for each line."""
+    parsed = {}
+
+    for line in ('cs', 'scl', 'sda'):
+        type_key = f'{line}_io_type'
+        gpio_key = f'{line}_gpio_num'
+        expander_key = f'{line}_expander_pin'
+        io_type = line_config.get(type_key, 'IO_TYPE_GPIO')
+
+        parsed[type_key] = io_type
+        if io_type == 'IO_TYPE_EXPANDER':
+            parsed[expander_key] = line_config.get(expander_key, -1)
+        else:
+            parsed[gpio_key] = line_config.get(gpio_key, -1)
+
+    parsed['io_expander'] = None
+    return parsed
+
+def _parse_3wire_spi_io_config_dict(sub_config: dict) -> dict:
+    """Parse esp_lcd_panel_io_3wire_spi_config_t-style block."""
+    io = sub_config.get('io_3wire_spi_config', {})
+    flags = io.get('flags', {})
+    return {
+        'line_config': _parse_3wire_spi_line_config(io.get('line_config', {})),
+        'expect_clk_speed': int(io.get('expect_clk_speed', 500000)),
+        'spi_mode': int(io.get('spi_mode', 0)),
+        'lcd_cmd_bytes': int(io.get('lcd_cmd_bytes', 1)),
+        'lcd_param_bytes': int(io.get('lcd_param_bytes', 1)),
+        'flags': {
+            'use_dc_bit': flags.get('use_dc_bit', True),
+            'dc_zero_on_data': flags.get('dc_zero_on_data', False),
+            'lsb_first': flags.get('lsb_first', False),
+            'cs_high_active': flags.get('cs_high_active', False),
+            'del_keep_cs_inactive': flags.get('del_keep_cs_inactive', True),
+        },
+    }
+
+def parse_rgb_3wire_spi_sub_config(full_config: dict = None, peripherals_dict=None) -> dict:
+    """Parse RGB LCD with 3-wire SPI command IO sub configuration."""
+    sub_config = full_config.get('config', {})
+    rgb_sub_cfg = parse_rgb_sub_config(full_config, peripherals_dict)
+    panel_config = _parse_lcd_panel_dev_config_dict(sub_config)
+
+    if panel_config.get('vendor_config') in ('', 'auto'):
+        panel_config['vendor_config'] = None
+
+    io_3wire = sub_config.get('io_3wire_spi_config', {})
+    lcd_panel_config = sub_config.get('lcd_panel_config', {})
+
+    return {
+        'io_expander_name': io_3wire.get('io_expander_name', ''),
+        'user_fbs_func': rgb_sub_cfg.get('user_fbs_func', ''),
+        'io_3wire_spi_config': _parse_3wire_spi_io_config_dict(sub_config),
+        'rgb_panel_config': rgb_sub_cfg.get('panel_config', {}),
+        'panel_config': panel_config,
+        'auto_del_panel_io': lcd_panel_config.get('auto_del_panel_io', False),
+    }
+
 def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     """Parse LCD Display device configuration from YAML"""
     sub_type = full_config.get('sub_type')
@@ -391,7 +465,7 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
         raise ValueError(f"LCD Display device '{name}' is missing required 'sub_type' field")
 
     # Validate sub_type value
-    if sub_type not in ['dsi', 'spi', 'parlio', 'rgb']:
+    if sub_type not in ['dsi', 'spi', 'parlio', 'rgb', 'rgb_3wire_spi']:
         raise ValueError(f"LCD Display device '{name}' has invalid 'sub_type' value '{sub_type}'")
 
     # Parse sub configuration based on sub_type and extract common parameters
@@ -456,6 +530,28 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
             'bits_per_pixel',
             panel_config.get('bits_per_pixel',
                              _rgb_bits_per_pixel_from_color_format(panel_config.get('in_color_format'), 16)),
+        )
+    elif sub_type == 'rgb_3wire_spi':
+        sub_cfg = parse_rgb_3wire_spi_sub_config(full_config, peripherals_dict)
+        sub_cfg_union = {'rgb_3wire_spi': sub_cfg}
+        panel_config = sub_cfg.get('rgb_panel_config', {})
+        timings = panel_config.get('timings', {})
+        lcd_width = timings.get('h_res', 800)
+        lcd_height = timings.get('v_res', 480)
+        swap_xy = full_config.get('config').get('swap_xy', False)
+        mirror_x = full_config.get('config').get('mirror_x', False)
+        mirror_y = full_config.get('config').get('mirror_y', False)
+        need_reset = full_config.get('config').get('need_reset', True)
+        invert_color = full_config.get('config').get('invert_color', False)
+        rgb_ele_order = sub_cfg.get('panel_config', {}).get('rgb_ele_order', 'LCD_RGB_ELEMENT_ORDER_RGB')
+        data_endian = sub_cfg.get('panel_config', {}).get('data_endian', 'LCD_RGB_DATA_ENDIAN_BIG')
+        bits_per_pixel = sub_cfg.get('panel_config', {}).get(
+            'bits_per_pixel',
+            full_config.get('config').get(
+                'bits_per_pixel',
+                panel_config.get('bits_per_pixel',
+                                 _rgb_bits_per_pixel_from_color_format(panel_config.get('in_color_format'), 16)),
+            ),
         )
     else:
         raise ValueError(f'Unsupported sub_type: {sub_type}')

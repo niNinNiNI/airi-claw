@@ -23,8 +23,8 @@
 #include "periph_anacmpr.h"
 #include "periph_gpio.h"
 
-static const char *TAG          = "TEST_ANACMPR";
-static gpio_num_t  gpio_monitor = -1;  // GPIO used to monitor cross events
+static const char *TAG = "TEST_ANACMPR";
+static gpio_num_t gpio_monitor = -1;  // GPIO used to monitor cross events
 
 static bool test_anacmpr_on_cross_callback(ana_cmpr_handle_t cmpr, const ana_cmpr_cross_event_data_t *edata, void *user_ctx)
 {

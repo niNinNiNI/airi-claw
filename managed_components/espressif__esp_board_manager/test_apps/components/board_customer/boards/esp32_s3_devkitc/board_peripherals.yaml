@@ -41,7 +41,7 @@ peripherals:
   #     conv_mode: ADC_CONV_SINGLE_UNIT_1
 
   #     pattern_num: 1
-  #     channel_id: [4]
+  #     channel_list: [4]
 
   - name: adc_unit_1
     type: adc

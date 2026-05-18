@@ -12,8 +12,8 @@
 
 static const char *TAG = "BMGR_PLAY_SDCARD_MUSIC";
 
-#define DEFAULT_PLAY_URL "/sdcard/test.wav"
-#define DEFAULT_PLAY_VOL 60
+#define DEFAULT_PLAY_URL  "/sdcard/test.wav"
+#define DEFAULT_PLAY_VOL  60
 
 void app_main(void)
 {

@@ -12,7 +12,7 @@
 #include "esp_board_device.h"
 #include "esp_board_manager.h"
 #include "test_dev_custom.h"
-#include "gen_board_device_custom.h" // Include generated custom device config header
+#include "gen_board_device_custom.h"  // Include generated custom device config header
 
 static const char *TAG = "TEST_DEV_CUSTOM";
 

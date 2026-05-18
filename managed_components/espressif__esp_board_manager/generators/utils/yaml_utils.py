@@ -64,10 +64,21 @@ def load_board_yaml_file(file_path: Union[str, Path]) -> Dict[str, Any]:
     if not p.is_file():
         raise FileNotFoundError(str(p))
     text = p.read_text(encoding='utf-8')
-    if not text.strip():
+    return load_yaml_mapping_from_text(text, p)
+
+
+def load_yaml_mapping_from_text(content: str, source_path: Union[str, Path]) -> Dict[str, Any]:
+    """
+    Parse YAML text and require a mapping root.
+
+    This is the shared low-level parser for board YAML loaders. Empty,
+    whitespace-only, comments-only, and YAML null documents all resolve to ``{}``.
+    """
+    p = Path(source_path)
+    if not content.strip():
         return {}
     try:
-        data = yaml.safe_load(text)
+        data = yaml.safe_load(content)
     except yaml.YAMLError as e:
         raise BoardConfigYamlError(p, BoardConfigYamlError.REASON_YAML_SYNTAX, str(e)) from e
     if data is None:

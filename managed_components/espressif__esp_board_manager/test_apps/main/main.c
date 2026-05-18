@@ -212,7 +212,6 @@ void app_main(void)
 #endif  /* CONFIG_ESP_BOARD_DEV_LED_STRIP_SUPPORT */
 
 #ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
-    lvgl_port_stop();
     test_dev_lcd_touch_deinit();
     test_dev_lcd_lvgl_deinit();
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */

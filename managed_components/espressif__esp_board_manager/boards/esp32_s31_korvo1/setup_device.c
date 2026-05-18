@@ -7,13 +7,17 @@
 
 #include "esp_log.h"
 #include "esp_err.h"
+
+#if __has_include(<esp_lcd_touch_gt1151.h>)
 #include "esp_lcd_touch_gt1151.h"
+#endif  /* __has_include(<esp_lcd_touch_gt1151.h>) */
 
 static const char *TAG = "S31_KORVO1_SETUP_DEVICE";
 
-esp_err_t lcd_touch_factory_entry_t(esp_lcd_panel_io_handle_t io,
-                                    const esp_lcd_touch_config_t *touch_dev_config,
-                                    esp_lcd_touch_handle_t *ret_touch)
+#if __has_include(<esp_lcd_touch_gt1151.h>)
+__attribute__((weak)) esp_err_t lcd_touch_factory_entry_t(esp_lcd_panel_io_handle_t io,
+                                                          const esp_lcd_touch_config_t *touch_dev_config,
+                                                          esp_lcd_touch_handle_t *ret_touch)
 {
     esp_err_t ret = esp_lcd_touch_new_i2c_gt1151(io, touch_dev_config, ret_touch);
     if (ret != ESP_OK) {
@@ -23,3 +27,4 @@ esp_err_t lcd_touch_factory_entry_t(esp_lcd_panel_io_handle_t io,
 
     return ESP_OK;
 }
+#endif  /* __has_include(<esp_lcd_touch_gt1151.h>) */

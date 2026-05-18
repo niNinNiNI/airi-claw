@@ -22,7 +22,7 @@
 static const char *TAG = "BOARD_DEVICE";
 
 extern const esp_board_device_desc_t g_esp_board_devices[];
-extern esp_board_device_handle_t     g_esp_board_device_handles[];
+extern esp_board_device_handle_t g_esp_board_device_handles[];
 
 typedef struct cfg_override_node {
     struct cfg_override_node *next;

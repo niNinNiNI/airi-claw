@@ -43,7 +43,7 @@ class TestGenerators(unittest.TestCase):
 
         try:
             # Test saving
-            success = save_yaml_safe(yaml_file, test_data)
+            success = save_yaml_safe(test_data, yaml_file)
             self.assertTrue(success)
 
             # Test loading
@@ -73,7 +73,7 @@ class TestGenerators(unittest.TestCase):
             cmake_file = temp_path / 'CMakeLists.txt'
             components_dir = temp_path / 'components'
 
-            cmake_file.touch()
+            cmake_file.write_text('cmake_minimum_required(VERSION 3.16)\nproject(test_project)\n')
             components_dir.mkdir()
 
             found_root = find_project_root(temp_path)

@@ -11,7 +11,7 @@
 extern "C" {
 #endif  /* __cplusplus */
 
-#define DEV_IO_EXPANDER_MAX_ADDR_COUNT 2
+#define DEV_IO_EXPANDER_MAX_ADDR_COUNT  2
 
 /**
  * @brief  IO Expander device configuration structure

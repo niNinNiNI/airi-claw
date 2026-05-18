@@ -116,7 +116,7 @@ static int test_adc_button(void)
     }
     return 0;
 }
-#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SINGLE_SUPPORT || CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_MULTI_SUPPORT */
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SINGLE_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_MULTI_SUPPORT) */
 
 void test_dev_button(void)
 {
@@ -125,7 +125,7 @@ void test_dev_button(void)
     ret = test_gpio_button();
 #elif defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SINGLE_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_MULTI_SUPPORT)
     ret = test_adc_button();
-#endif
+#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUB_GPIO_SUPPORT */
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed to test dev button");
         return;

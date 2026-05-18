@@ -4,10 +4,9 @@ devices:
   - name: sdcard_power_ctrl
     type: power_ctrl
     sub_type: gpio
-    config:
-      peripherals:
-        - name: gpio_sd_power
-          active_level: 0
+    peripherals:
+      - name: gpio_sd_power
+        active_level: 0
 
   # Audio Codec (ES8311) - DAC for audio output
   - name: audio_dac
@@ -55,9 +54,9 @@ devices:
     version: default
     config:
       mount_point: "/sdcard"
+      vfs_config:
+        max_files: 5
       sub_config:
-        vfs_config:
-          max_files: 5
         bus_width: 1                 # 1-line mode only
         pins:
             clk: 14

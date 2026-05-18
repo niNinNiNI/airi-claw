@@ -31,7 +31,7 @@ int dev_gpio_ctrl_init(void *cfg, int cfg_size, void **device_handle)
         return -1;
     }
 
-    int ret = esp_board_periph_ref_handle(config->gpio_name, (void*)&gpio_handle);
+    int ret = esp_board_periph_ref_handle(config->gpio_name, (void *)&gpio_handle);
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed to get GPIO peripheral handle '%s': %d", config->gpio_name, ret);
         return -1;
@@ -39,7 +39,7 @@ int dev_gpio_ctrl_init(void *cfg, int cfg_size, void **device_handle)
 
     // Get GPIO peripheral config
     periph_gpio_config_t gpio_config = {0};
-    esp_err_t config_ret = esp_board_periph_get_config(config->gpio_name, (void*)&gpio_config);
+    esp_err_t config_ret = esp_board_periph_get_config(config->gpio_name, (void *)&gpio_config);
     if (config_ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get GPIO peripheral config '%s': %s", config->gpio_name, esp_err_to_name(config_ret));
         return -1;

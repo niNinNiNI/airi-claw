@@ -71,8 +71,8 @@ static inline esp_board_device_handle_t *esp_board_find_device_handle(const char
  * @param[in]  name  Device name to search for
  *
  * @return
- *       - const esp_board_device_desc_t*  Device descriptor if found
- *       - NULL                            If device not found or name is NULL
+ *       - const  esp_board_device_desc_t*  Device descriptor if found
+ *       - NULL   If device not found or name is NULL
  */
 static inline const esp_board_device_desc_t *esp_board_find_device_desc(const char *name)
 {
@@ -100,8 +100,8 @@ static inline const esp_board_device_desc_t *esp_board_find_device_desc(const ch
  * @param[in]  name  Peripheral name to search for
  *
  * @return
- *       - const esp_board_periph_desc_t*  Peripheral descriptor if found
- *       - NULL                            If peripheral not found or name is NULL
+ *       - const  esp_board_periph_desc_t*  Peripheral descriptor if found
+ *       - NULL   If peripheral not found or name is NULL
  */
 static inline const esp_board_periph_desc_t *esp_board_find_periph_desc(const char *name)
 {

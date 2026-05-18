@@ -109,7 +109,7 @@ def test_adc_metadata_skips_io_when_channel_header_is_missing(bmgr_root, monkeyp
                 'unit_id': 'ADC_UNIT_1',
                 'atten': 'ADC_ATTEN_DB_0',
                 'bit_width': 'ADC_BITWIDTH_DEFAULT',
-                'channel_id': [4],
+                'channel_list': [4],
             },
         },
     )

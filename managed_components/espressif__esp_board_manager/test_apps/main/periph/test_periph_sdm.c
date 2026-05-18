@@ -21,10 +21,10 @@
 #include "esp_board_manager_defs.h"
 #include "periph_sdm.h"
 
-#define EXAMPLE_SDM_DUTY_STEP 2
-#define EXAMPLE_SDM_DUTY_MAX  120
-#define EXAMPLE_SDM_DUTY_MIN  -120
-#define EXAMPLE_SDM_DELAY_MS  10
+#define EXAMPLE_SDM_DUTY_STEP  2
+#define EXAMPLE_SDM_DUTY_MAX   120
+#define EXAMPLE_SDM_DUTY_MIN   -120
+#define EXAMPLE_SDM_DELAY_MS   10
 
 static const char *TAG = "TEST_SDM";
 

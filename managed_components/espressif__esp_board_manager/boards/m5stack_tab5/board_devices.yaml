@@ -139,7 +139,7 @@ devices:
           vsync_back_porch : 20
           vsync_pulse_width : 4
           vsync_front_porch : 20
-      peripherals:
+    peripherals:
       - name: ldo_mipi
       - name: dsi_display
 
@@ -147,10 +147,9 @@ devices:
   - name: touch_power_ctrl
     type: power_ctrl
     sub_type: gpio
-    config:
-      peripherals:
-        - name: gpio_power_touch
-          active_level: 0
+    peripherals:
+      - name: gpio_power_touch
+        active_level: 0
 
   # Touch Panel Configuration
   - name: lcd_touch

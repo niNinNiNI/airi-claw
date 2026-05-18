@@ -163,8 +163,22 @@
           # - SOC_ADC_DIGI_MAX_BITWIDTH
           bit_width: SOC_ADC_DIGI_MAX_BITWIDTH
 
-      # Single Unit configuration mode, simpler mode for single unit ADC path, alternative to patterns[]:
-      # unit_id: ADC_UNIT_1  # [TO_BE_CONFIRMED] ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2
-      # channel_list: [4]  # [TO_BE_CONFIRMED] List of ADC channels used by this audio input path.
-      # atten: ADC_ATTEN_DB_0
-      # bit_width: SOC_ADC_DIGI_MAX_BITWIDTH
+# Single Unit configuration mode, simpler mode for single unit ADC path
+- name: audio_adc_mic
+  chip: internal
+  type: audio_codec
+  config:
+    adc_enabled: true
+    dac_enabled: false
+    adc_local_cfg:
+      sample_rate_hz: 16000
+      max_store_buf_size: 1024
+      conv_frame_size: 256
+      format: ADC_DIGI_OUTPUT_FORMAT_TYPE2
+      conv_mode: ADC_CONV_SINGLE_UNIT_1
+
+      # Below are the single unit configuration parameters, alternative to patterns[]
+      unit_id: ADC_UNIT_1  # [TO_BE_CONFIRMED] ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2
+      channel_list: [4]    # [TO_BE_CONFIRMED] List of ADC channels used by this audio input path.
+      atten: ADC_ATTEN_DB_0
+      bit_width: SOC_ADC_DIGI_MAX_BITWIDTH

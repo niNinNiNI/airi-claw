@@ -34,8 +34,9 @@ static const char *TAG = "video_player";
 
 #define DISPLAY_BUFFER_SIZE (480 * 800 * 2)  /* RGB565, match LCD resolution */
 
-#define MAX_PLAYLIST_ITEMS  50
-#define MAX_FILENAME_LEN    512
+#define MAX_PLAYLIST_ITEMS        50
+#define MAX_CONSECUTIVE_FAILURES  3
+#define MAX_FILENAME_LEN          512
 
 #define SD_MOUNT_POINT  "/sdcard"
 
@@ -52,6 +53,7 @@ static int s_current_index;
 
 static TaskHandle_t s_video_task_handle;
 static bool s_running;
+static int s_consecutive_failures;
 
 /* ---- helpers ---- */
 static bool is_video_file(const char *filename)
@@ -86,8 +88,6 @@ static esp_err_t scan_media_files(const char *dir_path)
     char full_path[MAX_FILENAME_LEN];
     size_t dir_len = strlen(dir_path);
 
-    ESP_LOGD(TAG, "Scanning directory: %s", dir_path);
-
     while ((entry = readdir(dir)) != NULL && s_playlist_count < MAX_PLAYLIST_ITEMS) {
         if (entry->d_type == DT_REG && is_video_file(entry->d_name)) {
             size_t name_len = strlen(entry->d_name);
@@ -98,7 +98,6 @@ static esp_err_t scan_media_files(const char *dir_path)
                 if (stat(full_path, &st) == 0 && st.st_size > 0) {
                     s_playlist[s_playlist_count] = strdup(full_path);
                     if (s_playlist[s_playlist_count] != NULL) {
-                        ESP_LOGD(TAG, "  [%d] %s", s_playlist_count, entry->d_name);
                         s_playlist_count++;
                     }
                 }
@@ -148,15 +147,14 @@ static void video_task(void *arg)
 {
     uint32_t total_play_count = 0;
 
-    ESP_LOGD(TAG, "Video task started");
-
     display_arbiter_acquire(DISPLAY_ARBITER_OWNER_VIDEO);
 
     while (s_running && display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
         const char *current_file = s_playlist[s_current_index];
         total_play_count++;
+        bool play_ok = false;
 
-        ESP_LOGI(TAG, "=== Playing [%d/%d] #%u: %s ===",
+        ESP_LOGD(TAG, "=== Playing [%d/%d] #%u: %s ===",
                  s_current_index + 1, s_playlist_count,
                  total_play_count, strrchr(current_file, '/') + 1);
 
@@ -165,13 +163,6 @@ static void video_task(void *arg)
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to set file: %s, moving to next", current_file);
             goto next_file;
-        }
-
-        uint32_t width, height, fps, duration;
-        ret = app_stream_adapter_get_info(s_stream_adapter, &width, &height, &fps, &duration);
-        if (ret == ESP_OK) {
-            ESP_LOGD(TAG, "Media info: %"PRIu32"x%"PRIu32", %"PRIu32" fps, duration: %"PRIu32" ms",
-                     width, height, fps, duration);
         }
 
         ret = app_stream_adapter_start(s_stream_adapter);
@@ -189,7 +180,6 @@ static void video_task(void *arg)
             ret = app_stream_adapter_is_eos(s_stream_adapter, &eos);
 
             if (ret == ESP_OK && eos) {
-                ESP_LOGD(TAG, "Playback finished - end of stream reached");
                 break;
             }
 
@@ -200,8 +190,6 @@ static void video_task(void *arg)
                 if (stats.frames_processed == last_frames) {
                     stable_count++;
                     if (stable_count >= 5) {
-                        ESP_LOGD(TAG, "Playback finished (%" PRIu32 " frames) - fallback detection",
-                                 stats.frames_processed);
                         break;
                     }
                 } else {
@@ -214,13 +202,22 @@ static void video_task(void *arg)
         }
 
         app_stream_adapter_stop(s_stream_adapter);
+        play_ok = true;
 
 next_file:
         s_current_index = (s_current_index + 1) % s_playlist_count;
+        if (play_ok) {
+            s_consecutive_failures = 0;
+        } else {
+            s_consecutive_failures++;
+            if (s_consecutive_failures >= MAX_CONSECUTIVE_FAILURES) {
+                ESP_LOGE(TAG, "%d consecutive failures, giving up", s_consecutive_failures);
+                break;
+            }
+        }
     }
 
     display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
-    ESP_LOGD(TAG, "Video task stopped");
     s_video_task_handle = NULL;
     vTaskDelete(NULL);
 }
@@ -267,7 +264,6 @@ esp_err_t video_player_init(void)
     };
     esp_lcd_dpi_panel_register_event_callbacks(s_panel, &callbacks, NULL);
 
-    ESP_LOGD(TAG, "Video player initialized");
     return ESP_OK;
 #endif
 }
@@ -296,7 +292,6 @@ esp_err_t video_player_start(void)
         s_audio_dev = *(esp_codec_dev_handle_t *)audio_handle;
         if (s_audio_dev) {
             esp_codec_dev_set_out_vol(s_audio_dev, 80);
-            ESP_LOGD(TAG, "Audio output initialized");
         }
     } else {
         ESP_LOGW(TAG, "No audio device, video-only playback");
@@ -326,6 +321,7 @@ esp_err_t video_player_start(void)
     /* Start video playback task */
     s_running = true;
     s_current_index = 0;
+    s_consecutive_failures = 0;
 
     BaseType_t task_ret = xTaskCreate(video_task, "video_task",
                                        8 * 1024, NULL,
@@ -362,6 +358,5 @@ esp_err_t video_player_stop(void)
 
     playlist_cleanup();
 
-    ESP_LOGD(TAG, "Video player stopped");
     return ESP_OK;
 }

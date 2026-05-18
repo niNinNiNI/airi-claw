@@ -20,11 +20,11 @@ extern "C" {
  * @brief  Board information structure
  */
 typedef struct esp_board_info {
-    const char  *name;          /*!< Board name */
-    const char  *chip;          /*!< Chip type */
-    const char  *version;       /*!< Board version */
-    const char  *description;   /*!< Board description */
-    const char  *manufacturer;  /*!< Board manufacturer */
+    const char *name;          /*!< Board name */
+    const char *chip;          /*!< Chip type */
+    const char *version;       /*!< Board version */
+    const char *description;   /*!< Board description */
+    const char *manufacturer;  /*!< Board manufacturer */
 } esp_board_info_t;
 
 /* Global board information */

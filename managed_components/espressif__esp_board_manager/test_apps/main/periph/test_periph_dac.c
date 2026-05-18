@@ -26,8 +26,8 @@
 #include "esp_board_manager_defs.h"
 #include "periph_dac.h"
 
-#define EXAMPLE_ARRAY_LEN     400
-#define EXAMPLE_DAC_AMPLITUDE 255
+#define EXAMPLE_ARRAY_LEN      400
+#define EXAMPLE_DAC_AMPLITUDE  255
 
 static const char *TAG = "TEST_DAC";
 

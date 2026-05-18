@@ -106,6 +106,7 @@ class BmgrCommandArgs:
     list_boards: bool
     board_name: Optional[str]
     board_customer_path: Optional[str]
+    amend_dir: Optional[str]
     peripherals_only: bool
     devices_only: bool
     kconfig_only: bool
@@ -120,6 +121,8 @@ BMGR_OPTIONS_REQUIRING_VALUE = frozenset({
     '--board',
     '-c',
     '--customer-path',
+    '-a',
+    '--amend',
     '-n',
     '--new-board',
     '--log-level',
@@ -361,6 +364,7 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
             list_boards=kwargs.get('list_boards', False),
             board_name=kwargs.get('board'),
             board_customer_path=kwargs.get('customer_path'),
+            amend_dir=kwargs.get('amend', None),
             peripherals_only=kwargs.get('peripherals_only', False),
             devices_only=kwargs.get('devices_only', False),
             kconfig_only=kwargs.get('kconfig_only', False),
@@ -588,7 +592,11 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
 
         # Create generator and run
         script_dir = current_dir
-        generator = BoardConfigGenerator(script_dir, project_dir=project_dir)
+        generator = BoardConfigGenerator(
+            script_dir,
+            project_dir=project_dir,
+            amend_dir=command_args.amend_dir,
+        )
 
         try:
             if command_args.new_board:
@@ -638,12 +646,21 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
         },
         {
             'names': ['-b', '--board'],
-            'help': 'Specify board name or index number (bypasses sdkconfig reading)',
+            'help': 'Specify board name, index number, or directory path (absolute or relative)',
             'type': str,
         },
         {
             'names': ['-c', '--customer-path'],
             'help': 'Path to custom boards directory (Leave unset to skip)',
+            'type': str,
+        },
+        {
+            'names': ['-a', '--amend'],
+            'help': (
+                'Path to an amend directory containing a board_amend.yaml manifest. '
+                'The manifest declares an ordered list of fragments (YAML / C / directory) to '
+                'apply on top of the selected board; later entries override earlier ones.'
+            ),
             'type': str,
         },
         {

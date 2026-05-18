@@ -14,7 +14,7 @@
 #include "dev_gpio_expander.h"
 #include "esp_io_expander.h"
 
-#define GPIO_EXPANDER_TEST IO_EXPANDER_PIN_NUM_1
+#define GPIO_EXPANDER_TEST  IO_EXPANDER_PIN_NUM_1
 
 static const char *TAG = "TEST_GPIO_EXPANDER";
 

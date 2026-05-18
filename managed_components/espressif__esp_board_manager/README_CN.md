@@ -359,8 +359,9 @@ void app_main(void)
 **板子选择与发现：**
 
 ```bash
--b, --board BOARD                # 板子名称或索引
+-b, --board BOARD                # 板子名称、索引或板子目录路径
 -c, --customer-path PATH         # 自定义板子目录（单个或多个）
+-a, --amend DIR                  # 在已选板子之上应用一份 amend 目录（必须包含 board_amend.yaml）
 -l, --list-boards                # 列出所有可用板子并退出
 -n, --new-board ARG              # 创建新板子（仅 idf.py action 支持）
 [BOARD]                          # 直接使用板子名称或索引（仅独立脚本支持）
@@ -401,6 +402,9 @@ idf.py bmgr -b 1
 
 # 使用自定义板子
 idf.py bmgr -b my_board -c /path/to/custom/boards
+
+# 基于已有板子做局部覆盖或扩展（amend 目录里必须有 board_amend.yaml）
+idf.py bmgr -b esp32_s3_korvo2_v3 -a path/to/my_amend
 
 # 在默认 components 目录创建新板子
 idf.py bmgr -n my_new_board

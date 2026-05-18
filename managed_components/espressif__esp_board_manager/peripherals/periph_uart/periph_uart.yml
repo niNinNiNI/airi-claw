@@ -39,6 +39,9 @@
     # Flag to enable queue for UART events (default: false)
     use_queue: false
 
+    # Size of the event queue, only used when use_queue is true (default: 10)
+    queue_size: 10
+
     # Interrupt allocation flags (default: 0)
     intr_alloc_flags: 0
 

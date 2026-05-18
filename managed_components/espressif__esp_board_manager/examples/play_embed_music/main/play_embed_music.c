@@ -11,7 +11,7 @@
 
 static const char *TAG = "BMGR_EMBED_MUSIC";
 
-#define DEFAULT_PLAY_VOL 60
+#define DEFAULT_PLAY_VOL  60
 
 // Embedded audio file
 extern const uint8_t test_wav_start[] asm("_binary_test_wav_start");

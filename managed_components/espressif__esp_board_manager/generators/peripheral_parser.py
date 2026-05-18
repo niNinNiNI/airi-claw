@@ -9,14 +9,19 @@ Parses peripheral configurations from YAML files
 """
 
 from .utils.logger import LoggerMixin
-from .utils.yaml_utils import load_board_yaml_file, BoardConfigYamlError
+from .utils.yaml_utils import BoardConfigYamlError
 from .utils.board_schema_version import warn_if_invalid_board_yaml_schema_version
 from .settings import BoardManagerConfig
 from .name_validator import validate_component_name
+from .schema_validator import PeripheralSchemaValidator
+from .utils.config_utils import load_yaml_with_includes
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, TYPE_CHECKING
 import os
 import re
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from .amend import AmendPlan
 
 
 class PeripheralParser(LoggerMixin):
@@ -26,7 +31,11 @@ class PeripheralParser(LoggerMixin):
         super().__init__()
         self.root_dir = root_dir
 
-    def parse_peripherals_yaml(self, yaml_path: str) -> Tuple[Dict[str, Any], Dict[str, str], List[str]]:
+        # Initialize schema validator
+        peripherals_dir = root_dir / 'peripherals'
+        self.schema_validator = PeripheralSchemaValidator(peripherals_dir)
+
+    def parse_peripherals_yaml(self, yaml_path: str, amend_plan: Optional['AmendPlan'] = None) -> Tuple[Dict[str, Any], Dict[str, str], List[str]]:
         """
         Parse peripherals from YAML file and return peripherals dict, name map, and types list.
 
@@ -38,7 +47,7 @@ class PeripheralParser(LoggerMixin):
             self.logger.info('Please check if the file exists and the path is correct')
             return {}, {}, []
 
-        data = load_board_yaml_file(Path(yaml_path))
+        data = load_yaml_with_includes(yaml_path, amend_plan) or {}
 
         peripherals = data.get('peripherals', [])
         if not isinstance(peripherals, list):
@@ -76,11 +85,34 @@ class PeripheralParser(LoggerMixin):
                         f'{yaml_path} peripheral #{i + 1} ({name})',
                     )
 
+                # Check if generation should be skipped for this peripheral
+                if obj.get('gen_skip', False):
+                    self.logger.info(f"⏭️  Skipping peripheral '{name}' (gen_skip=True)")
+                    continue
+
                 # Validate peripheral name using unified rules
                 if not validate_component_name(name):
                     self.logger.error(f'Invalid peripheral name! Path: {yaml_path}')
                     self.logger.info(f"Peripheral #{i+1}: {obj}. Invalid name '{name}'. Peripheral names must be lowercase, start with a letter, and contain only letters, numbers, and underscores")
                     continue
+
+                # Validate top-level peripheral fields
+                issues = self.schema_validator.validate_peripheral_fields(obj, name)
+                for issue in issues:
+                    self.logger.warning(self.schema_validator.format_issue(issue))
+
+                # Validate peripheral configuration against schema
+                if 'config' in obj and isinstance(obj['config'], dict):
+                    issues = self.schema_validator.validate_config(
+                        periph_type=periph_type,
+                        config=obj['config'],
+                        periph_name=name,
+                        role=obj.get('role')
+                    )
+
+                    for issue in issues:
+                        formatted_msg = self.schema_validator.format_issue(issue)
+                        self.logger.warning(formatted_msg)
 
                 # Store peripheral data
                 out[name] = obj
@@ -107,11 +139,15 @@ class PeripheralParser(LoggerMixin):
         else:
             return [periph]
 
-    def parse_peripherals_yaml_legacy(self, yaml_path: str) -> List[Any]:
+    def parse_peripherals_yaml_legacy(self, yaml_path: str, amend_plan: Optional['AmendPlan'] = None) -> List[Any]:
         """
         Legacy method that returns a list of peripheral objects for backward compatibility
+
+        Args:
+            yaml_path:  Path to the YAML file
+            amend_plan: Optional AmendPlan to merge on top of the base YAML
         """
-        peripherals_dict, periph_name_map, peripheral_types = self.parse_peripherals_yaml(yaml_path)
+        peripherals_dict, periph_name_map, peripheral_types = self.parse_peripherals_yaml(yaml_path, amend_plan)
 
         # Convert to legacy format
         from dataclasses import dataclass

@@ -10,11 +10,14 @@ Dependency management for ESP Board Manager
 import os
 import yaml
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Any
+from typing import Dict, List, Set, Optional, Any, TYPE_CHECKING
 
 from .utils.logger import LoggerMixin
 from .utils.yaml_utils import load_yaml_safe, save_yaml_safe
-from .device_parser import load_yaml_with_includes
+from .utils.config_utils import load_yaml_with_includes
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from .amend import AmendPlan
 
 
 class DependencyManager(LoggerMixin):
@@ -24,24 +27,30 @@ class DependencyManager(LoggerMixin):
         super().__init__()
         self.root_dir = root_dir
 
-    def extract_device_dependencies(self, dev_yaml_path: str) -> Dict[str, str]:
+    def extract_device_dependencies(self, dev_yaml_path: str, amend_plan: Optional['AmendPlan'] = None) -> Dict[str, str]:
         """
         Extract dependencies from board_devices.yaml file.
 
         Args:
             dev_yaml_path: Path to board_devices.yaml file
+            amend_plan:    Optional AmendPlan to merge on top of the base YAML before
+                           dependency extraction (so amended devices contribute too).
 
         Returns:
             dict: Dictionary of component dependencies with versions
         """
         dependencies: Dict[str, str] = {}
         # Same merge/parse rules as device generation (anchors across sibling .yaml files).
-        data = load_yaml_with_includes(dev_yaml_path)
+        data = load_yaml_with_includes(dev_yaml_path, amend_plan) or {}
         if not isinstance(data, dict):
             data = {}
 
         devices = data.get('devices') or []
         for device in devices:
+            # Check if generation should be skipped for this device
+            if device.get('gen_skip', False):
+                continue
+
             # Only process explicit dependencies
             if 'dependencies' in device:
                 device_deps = device['dependencies']

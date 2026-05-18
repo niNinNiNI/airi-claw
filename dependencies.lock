@@ -463,7 +463,7 @@ dependencies:
       type: service
     version: 2.5.0
   espressif/esp_board_manager:
-    component_hash: e6b52add83cb1e83fad6ba52fd526f1e1797402b5550a44d6ef6e0a536a9bc10
+    component_hash: 559e8fbd848c9bb29064b280099b0befd0ec5f8bf42483b95aac95f954e9f4a1
     dependencies:
     - matches:
       - if: $CONFIG{ESP_BOARD_DEV_BUTTON_SUPPORT} == True
@@ -483,6 +483,12 @@ dependencies:
       registry_url: https://components.espressif.com
       require: private
       version: ^1.0.1
+    - matches:
+      - if: $CONFIG{ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT} == True
+      name: espressif/esp_lcd_panel_io_additions
+      registry_url: https://components.espressif.com
+      require: private
+      version: ^1.0.0
     - matches:
       - if: $CONFIG{ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT} == True
       - if: $CONFIG{ESP_BOARD_DEV_LCD_TOUCH_SUPPORT} == True
@@ -505,7 +511,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 0.5.10
+    version: 0.5.11
   espressif/esp_codec_dev:
     component_hash: 9293329ccb361f67c6e847ab8f693b2d9158b2e438eff583c28558c29cdf3dca
     dependencies:

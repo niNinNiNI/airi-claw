@@ -20,11 +20,11 @@
 static const char *TAG = "TEST_DEV_LCD_LVGL";
 
 // Button dimensions
-#define TEST_BTN_WIDTH  100
-#define TEST_BTN_HEIGHT 50
+#define TEST_BTN_WIDTH   100
+#define TEST_BTN_HEIGHT  50
 
 // Maximum result text length
-#define MAX_RESULT_TEXT 512
+#define MAX_RESULT_TEXT  512
 
 typedef enum {
     LCD_LVGL_TEST_SUCCESS = 0,

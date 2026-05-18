@@ -75,19 +75,19 @@ typedef struct {
  *         arrays (click_counts, durations_ms) provide the specific values for those events.
  */
 typedef struct {
-    dev_button_events_flags_t enabled_events;  /*!< Bitfield of enabled button events */
+    dev_button_events_flags_t  enabled_events;  /*!< Bitfield of enabled button events */
     struct {
-        uint8_t  *click_counts;  /*!< Array of click counts for multi‑click events, like support for event like triple click and so on */
-        int       count;         /*!< Number of entries in click_counts array */
-    } multi_click;               /*!< Configuration for multi‑click events */
+        uint8_t *click_counts;  /*!< Array of click counts for multi‑click events, like support for event like triple click and so on */
+        int      count;         /*!< Number of entries in click_counts array */
+    } multi_click;              /*!< Configuration for multi‑click events */
     struct {
-        uint16_t  *durations_ms;  /*!< Array of durations (in milliseconds) for long‑press‑start events */
-        int        count;         /*!< Number of entries in durations_ms array */
-    } long_press_start;           /*!< Configuration for long‑press‑start events */
+        uint16_t *durations_ms;  /*!< Array of durations (in milliseconds) for long‑press‑start events */
+        int       count;         /*!< Number of entries in durations_ms array */
+    } long_press_start;          /*!< Configuration for long‑press‑start events */
     struct {
-        uint16_t  *durations_ms;  /*!< Array of durations (in milliseconds) for long‑press‑up events */
-        int        count;         /*!< Number of entries in durations_ms array */
-    } long_press_up;              /*!< Configuration for long‑press‑up events */
+        uint16_t *durations_ms;  /*!< Array of durations (in milliseconds) for long‑press‑up events */
+        int       count;         /*!< Number of entries in durations_ms array */
+    } long_press_up;             /*!< Configuration for long‑press‑up events */
 } dev_button_events_config_t;
 
 /**
@@ -97,10 +97,10 @@ typedef struct {
  *         It defines the GPIO peripheral to use and button-specific settings.
  */
 typedef struct {
-    const char  *gpio_name;          /*!< GPIO peripheral name */
-    uint8_t      active_level;       /*!< Active level (0-low, 1-high) */
-    bool         enable_power_save;  /*!< Enable power save mode */
-    bool         disable_pull;       /*!< Disable internal pull-up/pull-down */
+    const char *gpio_name;          /*!< GPIO peripheral name */
+    uint8_t     active_level;       /*!< Active level (0-low, 1-high) */
+    bool        enable_power_save;  /*!< Enable power save mode */
+    bool        disable_pull;       /*!< Disable internal pull-up/pull-down */
 } dev_button_gpio_sub_config_t;
 
 /**
@@ -118,10 +118,10 @@ typedef struct {
             uint16_t  max_voltage;   /*!< Maximum voltage in mV for button press */
         } single;
         struct {
-            uint8_t      button_num;                                               /*!< Number of buttons in the group, should be less than or equal to CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL */
-            uint16_t     max_voltage;                                              /*!< Maximum voltage in mV for this ADC channel */
-            uint16_t     voltage_range[CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL];  /*!< Array of voltage thresholds in mV */
-            const char  *button_labels[CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL];  /*!< Array of button names */
+            uint8_t     button_num;                                               /*!< Number of buttons in the group, should be less than or equal to CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL */
+            uint16_t    max_voltage;                                              /*!< Maximum voltage in mV for this ADC channel */
+            uint16_t    voltage_range[CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL];  /*!< Array of voltage thresholds in mV */
+            const char *button_labels[CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL];  /*!< Array of button names */
         } multi;
     };
 } dev_button_adc_sub_config_t;

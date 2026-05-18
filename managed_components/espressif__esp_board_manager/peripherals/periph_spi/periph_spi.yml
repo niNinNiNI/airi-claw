@@ -5,13 +5,13 @@
 - name: spi_master
   type: spi
   config:
-    # SPI port (default: 0, maps to SPI1_HOST)
-    spi_port: 0
-    # Valid values: 0 (SPI1_HOST), 1 (SPI2_HOST), 2 (SPI3_HOST)
-    # Or use string: "SPI1_HOST", "SPI2_HOST", "SPI3_HOST"
-
     # SPI bus configuration
     spi_bus_config:
+      # SPI port (default: 0, maps to SPI1_HOST)
+      spi_port: 0
+      # Valid values: 0 (SPI1_HOST), 1 (SPI2_HOST), 2 (SPI3_HOST)
+      # Or use string: "SPI1_HOST", "SPI2_HOST", "SPI3_HOST"
+
       # Standard SPI pins (union fields - use either dataX_io_num or traditional names)
       # MOSI pin (default: -1, not set)
       mosi_io_num: -1                     # [IO] MOSI pin

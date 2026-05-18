@@ -31,8 +31,8 @@ int dev_fs_spiffs_init(void *cfg, int cfg_size, void **device_handle)
     fs_config->max_files = config->max_files;
     fs_config->format_if_mount_failed = config->format_if_mount_failed;
     ESP_LOGI(TAG, "SPIFFS config: name=%s, base_path=%s, partition_label=%s, max_files=%d, format_if_mount_failed=%d",
-        config->name, config->base_path, config->partition_label ? config->partition_label : "NULL", config->max_files,
-        config->format_if_mount_failed);
+             config->name, config->base_path, config->partition_label ? config->partition_label : "NULL", config->max_files,
+             config->format_if_mount_failed);
 
     esp_err_t ret = esp_vfs_spiffs_register(fs_config);
     if (ret != ESP_OK) {

@@ -21,8 +21,8 @@
 #include "esp_board_manager_defs.h"
 #include "periph_pcnt.h"
 
-#define EXAMPLE_FRAME_DURATION_MS 10
-#define EXAMPLE_TEST_SECONDS      5
+#define EXAMPLE_FRAME_DURATION_MS  10
+#define EXAMPLE_TEST_SECONDS       5
 
 static const char *TAG = "TEST_PCNT";
 

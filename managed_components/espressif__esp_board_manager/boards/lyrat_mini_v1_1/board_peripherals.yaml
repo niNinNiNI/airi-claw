@@ -14,9 +14,9 @@ peripherals:
   - name: i2s_audio_out
     type: i2s
     role: master
+    format: "std-out"
     config:
       port: 0
-      format: "std-out"
       pins:
         mclk: -1
         bclk: 5
@@ -30,9 +30,9 @@ peripherals:
   - name: i2s_audio_in
     type: i2s
     role: master
+    format: "std-in"
     config:
       port: 1
-      format: "std-in"
       pins:
         mclk: 0                    # GPIO_NUM_0 (ES7243_MCLK_GPIO)
         bclk: 32
@@ -55,7 +55,7 @@ peripherals:
     config:
       pin: 19
       mode: "GPIO_MODE_INPUT"
-      pullup_en: true
+      pull_up: true
 
   - name: gpio_power_amp                  # Power amplifier enable
     type: gpio
@@ -80,7 +80,7 @@ peripherals:
     config:
       pin: 34
       mode: "GPIO_MODE_INPUT"
-      pullup_en: true
+      pull_up: true
 
   # ADC for Button
   - name: adc_button

@@ -18,8 +18,15 @@ from .utils.yaml_utils import load_yaml_safe
 import yaml
 
 
+SDKCONFIG_DEFAULTS_BOARD_FILE = 'sdkconfig.defaults.board'
+
+
 class SDKConfigManager(LoggerMixin):
     """Manages SDKConfig file operations, auto-enabling features, and board-specific configurations"""
+
+    _SDKCONFIG_SET_RE = re.compile(r'^(CONFIG_[A-Za-z0-9_]+)\s*=')
+    _SDKCONFIG_UNSET_RE = re.compile(r'^#\s+(CONFIG_[A-Za-z0-9_]+)\s+is\s+not\s+set\s*$')
+    _SDKCONFIG_BARE_RE = re.compile(r'^(CONFIG_[A-Za-z0-9_]+)\s*$')
 
     def __init__(self, root_dir: Path, project_dir: Optional[str] = None):
         super().__init__()
@@ -422,6 +429,183 @@ class SDKConfigManager(LoggerMixin):
             # Log warning but don't fail the operation
             self.logger.warning(f'⚠️  Failed to delete build/config/sdkconfig.json: {e}')
 
+    @classmethod
+    def _extract_sdkconfig_symbol(cls, line: str) -> Optional[str]:
+        """Return CONFIG_* symbol for active sdkconfig set/unset lines."""
+        stripped = line.strip()
+        m = cls._SDKCONFIG_SET_RE.match(stripped)
+        if m:
+            return m.group(1)
+        m = cls._SDKCONFIG_UNSET_RE.match(stripped)
+        if m:
+            return m.group(1)
+        m = cls._SDKCONFIG_BARE_RE.match(stripped)
+        if m:
+            return m.group(1)
+        return None
+
+    @classmethod
+    def _count_active_sdkconfig_lines(cls, content: str) -> int:
+        return sum(1 for line in content.splitlines() if cls._extract_sdkconfig_symbol(line))
+
+    @classmethod
+    def _prepare_sdkconfig_defaults_content(
+        cls,
+        content: str,
+        section_label: str,
+    ) -> Tuple[str, Set[str], int]:
+        """Mark duplicate symbols inside one appended defaults section.
+
+        ESP-IDF applies later sdkconfig defaults last, so repeated symbols in one
+        section should leave only the last active line while retaining the old
+        value for traceability.
+        """
+        lines = content.strip().splitlines()
+        latest_line_for_symbol: Dict[str, int] = {}
+        overridden_count = 0
+
+        for idx, line in enumerate(lines):
+            symbol = cls._extract_sdkconfig_symbol(line)
+            if not symbol:
+                continue
+            if cls._SDKCONFIG_BARE_RE.match(line.strip()):
+                lines[idx] = f'{symbol}=y'
+
+            previous_idx = latest_line_for_symbol.get(symbol)
+            if previous_idx is not None:
+                lines[previous_idx] = (
+                    f'# BMGR_CONFIG_OVERRIDE by later entry in {section_label}: '
+                    f'{lines[previous_idx]}'
+                )
+                overridden_count += 1
+            latest_line_for_symbol[symbol] = idx
+
+        return '\n'.join(lines), set(latest_line_for_symbol.keys()), overridden_count
+
+    @classmethod
+    def _mark_overridden_sdkconfig_lines(
+        cls,
+        existing_content: str,
+        override_symbols: Set[str],
+        section_label: str,
+    ) -> Tuple[str, int]:
+        """Comment active sdkconfig lines overridden by a later defaults section."""
+        if not existing_content or not override_symbols:
+            return existing_content, 0
+
+        lines = existing_content.splitlines()
+        overridden_count = 0
+        for idx, line in enumerate(lines):
+            symbol = cls._extract_sdkconfig_symbol(line)
+            if symbol and symbol in override_symbols:
+                lines[idx] = f'# BMGR_CONFIG_OVERRIDE by {section_label}: {line}'
+                overridden_count += 1
+
+        trailing_newline = '\n' if existing_content.endswith('\n') else ''
+        return '\n'.join(lines) + trailing_newline, overridden_count
+
+    def append_sdkconfig_defaults_section(
+        self,
+        output_file: str,
+        section_title: str,
+        source_path: str,
+        content: str,
+    ) -> Dict[str, List[str]]:
+        """Append sdkconfig defaults and mark earlier same-symbol entries.
+
+        Active lines are either ``CONFIG_FOO=...`` or
+        ``# CONFIG_FOO is not set``. Other comments are kept as ordinary text
+        and do not participate in override detection.
+        """
+        result = {'added': [], 'updated': []}
+        stripped_content = content.strip()
+        if not stripped_content:
+            return result
+
+        output_path = Path(output_file)
+        section_label = f'{section_title} from {source_path}'
+        prepared_content, active_symbols, internal_overrides = self._prepare_sdkconfig_defaults_content(
+            stripped_content,
+            section_label,
+        )
+
+        existing_content = ''
+        if output_path.exists():
+            try:
+                with open(output_path, 'r', encoding='utf-8') as f:
+                    existing_content = f.read()
+            except Exception as e:
+                self.logger.error(f'   Error reading {output_file}: {e}')
+                return result
+
+        updated_content, previous_overrides = self._mark_overridden_sdkconfig_lines(
+            existing_content,
+            active_symbols,
+            section_label,
+        )
+
+        section_lines = [
+            f'# --- {section_title} ---',
+            f'# Source: {source_path}',
+            prepared_content,
+            f'# --- End of {section_title} ---',
+        ]
+        if updated_content and not updated_content.endswith('\n'):
+            updated_content += '\n'
+        if updated_content:
+            updated_content += '\n'
+        updated_content += '\n'.join(section_lines) + '\n'
+
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(updated_content)
+        except Exception as e:
+            self.logger.error(f'   Error writing to output file {output_file}: {e}')
+            return result
+
+        config_count = self._count_active_sdkconfig_lines(prepared_content)
+        result['config_count'] = config_count
+        if config_count:
+            result['added'].append(f'{config_count} sdkconfig defaults from {source_path}')
+        override_count = previous_overrides + internal_overrides
+        if override_count:
+            result['updated'].append(f'{override_count} overridden sdkconfig default(s)')
+        return result
+
+    def append_sdkconfig_defaults_file(
+        self,
+        output_file: str,
+        section_title: str,
+        source_path: str,
+        content_filter=None,
+    ) -> Dict[str, List[str]]:
+        """Read a defaults file, optionally filter its text, then append it."""
+        source = Path(source_path)
+        result = {'added': [], 'updated': []}
+        if not source.exists():
+            self.logger.debug(f'   No {source.name} found at {source}')
+            return result
+
+        try:
+            with open(source, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception as e:
+            self.logger.error(f'❌ Error reading {source}: {e}')
+            return result
+
+        if content_filter is not None:
+            content = content_filter(content)
+        if not content or not content.strip():
+            return result
+
+        return self.append_sdkconfig_defaults_section(
+            output_file=output_file,
+            section_title=section_title,
+            source_path=str(source),
+            content=content,
+        )
+
     def generate_board_manager_defaults(self, board_path: str, project_path: Optional[str] = None,
                                         board_name: Optional[str] = None, chip_name: Optional[str] = None,
                                         output_file: Optional[str] = None,
@@ -504,22 +688,6 @@ class SDKConfigManager(LoggerMixin):
             board_section_content += '\n'.join(enabled_bmgr_symbols) + '\n'
             config_count += len(enabled_bmgr_symbols)
 
-        # Check if sdkconfig.defaults.board file exists and add its content
-        board_defaults_path = Path(board_path) / 'sdkconfig.defaults.board'
-        if board_defaults_path.exists():
-            self.logger.info(f'   Found sdkconfig.defaults.board at {board_defaults_path}')
-            try:
-                with open(board_defaults_path, 'r', encoding='utf-8') as f:
-                    board_defaults_content = f.read().strip()
-                if board_defaults_content:
-                    board_section_content += f'\n{board_defaults_content}\n'
-                    config_count += len([line for line in board_defaults_content.splitlines()
-                                       if line.strip() and not line.strip().startswith('#')])
-            except Exception as e:
-                self.logger.error(f'   Error reading sdkconfig.defaults.board: {e}')
-        else:
-            self.logger.debug(f'   No sdkconfig.defaults.board found at {board_defaults_path}')
-
         board_section_content += f'{marker_end}\n'
 
         # Write board_manager.defaults file
@@ -532,6 +700,18 @@ class SDKConfigManager(LoggerMixin):
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(board_section_content)
+            board_defaults_path = Path(board_path) / SDKCONFIG_DEFAULTS_BOARD_FILE
+            if board_defaults_path.exists():
+                self.logger.info(f'   Found {SDKCONFIG_DEFAULTS_BOARD_FILE} at {board_defaults_path}')
+                append_result = self.append_sdkconfig_defaults_file(
+                    output_file=str(output_path),
+                    section_title='Board sdkconfig defaults',
+                    source_path=str(board_defaults_path),
+                )
+                config_count += append_result.get('config_count', 0)
+                result['updated'].extend(append_result.get('updated', []))
+            else:
+                self.logger.debug(f'   No {SDKCONFIG_DEFAULTS_BOARD_FILE} found at {board_defaults_path}')
             result['added'] = [f'{config_count} board-specific defaults']
             self.logger.debug(f'   Generated {config_count} board defaults to {output_file}')
 

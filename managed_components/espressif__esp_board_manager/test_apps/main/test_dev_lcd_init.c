@@ -5,12 +5,14 @@
  * See LICENSE file for details.
  */
 
+#include <string.h>
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_board_manager.h"
 #include "esp_board_manager_err.h"
 #include "esp_lvgl_port.h"
 #include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_rgb.h"
 #if defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT)
 #include "esp_lcd_touch.h"
 #endif  /* defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT) */
@@ -89,6 +91,32 @@ static esp_err_t lcd_backlight_set(int brightness_percent)
     return ESP_OK;
 }
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
+
+static bool lcd_is_rgb_panel(const dev_display_lcd_config_t *lcd_cfg)
+{
+    return lcd_cfg &&
+           ((strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB) == 0) ||
+            (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB_3WIRE_SPI) == 0));
+}
+
+static void lcd_unregister_rgb_callbacks(void)
+{
+    if (panel_handle == NULL) {
+        return;
+    }
+
+    dev_display_lcd_config_t *lcd_cfg = NULL;
+    esp_err_t ret = esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, (void **)&lcd_cfg);
+    if (ret != ESP_OK || !lcd_is_rgb_panel(lcd_cfg)) {
+        return;
+    }
+
+    esp_lcd_rgb_panel_event_callbacks_t callbacks = {0};
+    ret = esp_lcd_rgb_panel_register_event_callbacks(panel_handle, &callbacks, NULL);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to unregister RGB LCD callbacks: %s", esp_err_to_name(ret));
+    }
+}
 
 esp_err_t test_dev_lcd_lvgl_init(void)
 {
@@ -195,6 +223,7 @@ esp_err_t test_dev_lcd_lvgl_init(void)
                     .avoid_tearing = lcd_cfg->sub_cfg.rgb.panel_config.num_fbs > 1,
                 },
             };
+            disp_cfg.flags.direct_mode = rgb_cfg.flags.avoid_tearing;
 #if LVGL_VERSION_MAJOR >= 9
             disp_cfg.flags.swap_bytes = false;
 #endif  /* LVGL_VERSION_MAJOR >= 9 */
@@ -207,6 +236,27 @@ esp_err_t test_dev_lcd_lvgl_init(void)
             ESP_LOGE(TAG, "RGB LCD display is not supported in this configuration");
             return ESP_FAIL;
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+        } else if (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB_3WIRE_SPI) == 0) {
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
+            lvgl_port_display_rgb_cfg_t rgb_cfg = {
+                .flags = {
+                    .bb_mode = lcd_cfg->sub_cfg.rgb_3wire_spi.rgb_panel_config.bounce_buffer_size_px > 0,
+                    .avoid_tearing = lcd_cfg->sub_cfg.rgb_3wire_spi.rgb_panel_config.num_fbs > 1,
+                },
+            };
+            disp_cfg.flags.direct_mode = rgb_cfg.flags.avoid_tearing;
+#if LVGL_VERSION_MAJOR >= 9
+            disp_cfg.flags.swap_bytes = false;
+#endif  /* LVGL_VERSION_MAJOR >= 9 */
+            disp = lvgl_port_add_disp_rgb(&disp_cfg, &rgb_cfg);
+            if (disp == NULL) {
+                ESP_LOGE(TAG, "Failed to add unified RGB 3-wire SPI LCD display");
+                return ESP_FAIL;
+            }
+#else
+            ESP_LOGE(TAG, "RGB 3-wire SPI LCD display is not supported in this configuration");
+            return ESP_FAIL;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
         } else {
             ESP_LOGE(TAG, "Unknown LCD sub_type: %s", lcd_cfg->sub_type);
             return ESP_FAIL;
@@ -295,6 +345,7 @@ esp_err_t test_dev_lcd_lvgl_deinit(void)
     esp_err_t ret = ESP_OK;
     // Remove display from LVGL
     if (disp != NULL) {
+        lcd_unregister_rgb_callbacks();
         ret = lvgl_port_remove_disp(disp);
         if (ret != ESP_OK) {
             ESP_LOGW(TAG, "Failed to remove display from LVGL: %s", esp_err_to_name(ret));
@@ -304,6 +355,11 @@ esp_err_t test_dev_lcd_lvgl_deinit(void)
         disp = NULL;
     }
     lcd_handle = NULL;
+
+    ret = lvgl_port_stop();
+    if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "Failed to stop LVGL port: %s", esp_err_to_name(ret));
+    }
 
     // Deinitialize LVGL port
     ret = lvgl_port_deinit();

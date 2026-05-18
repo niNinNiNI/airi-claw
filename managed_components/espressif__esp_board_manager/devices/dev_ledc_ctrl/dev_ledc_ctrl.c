@@ -5,7 +5,7 @@
  * See LICENSE file for details.
  */
 
- #include <string.h>
+#include <string.h>
 #include "esp_log.h"
 #include "esp_err.h"
 #include "driver/ledc.h"
@@ -27,13 +27,13 @@ int dev_ledc_ctrl_init(void *cfg, int cfg_size, void **device_handle)
         ESP_LOGE(TAG, "No LEDC peripheral name configured for device: %s", config->name);
         return -1;
     }
-    int ret = esp_board_periph_ref_handle(config->ledc_name, (void*)&ledc_handle);
+    int ret = esp_board_periph_ref_handle(config->ledc_name, (void *)&ledc_handle);
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed to get LEDC peripheral handle '%s': %d", config->ledc_name, ret);
         return -1;
     }
     periph_ledc_config_t *ledc_config = NULL;
-    esp_err_t config_ret = esp_board_periph_get_config(config->ledc_name, (void**)&ledc_config);
+    esp_err_t config_ret = esp_board_periph_get_config(config->ledc_name, (void **)&ledc_config);
     if (config_ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LEDC peripheral config '%s': %s", config->ledc_name, esp_err_to_name(config_ret));
         return -1;

@@ -17,7 +17,7 @@ extern "C" {
 /**
  * @brief  Maximum number of peripherals supported by custom device
  */
-#define MAX_PERIPHERALS 4
+#define MAX_PERIPHERALS  4
 
 /**
  * @brief  Generic custom device configuration structure
@@ -26,11 +26,11 @@ extern "C" {
  *         structures based on the YAML configuration.
  */
 typedef struct {
-    const char  *name;                               /*!< Custom device name */
-    const char  *type;                               /*!< Device type: "custom" */
-    const char  *chip;                               /*!< Chip name */
-    uint8_t      peripheral_count;                   /*!< Number of peripherals */
-    const char  *peripheral_names[MAX_PERIPHERALS];  /*!< Peripheral names array */
+    const char *name;                               /*!< Custom device name */
+    const char *type;                               /*!< Device type: "custom" */
+    const char *chip;                               /*!< Chip name */
+    uint8_t     peripheral_count;                   /*!< Number of peripherals */
+    const char *peripheral_names[MAX_PERIPHERALS];  /*!< Peripheral names array */
 } dev_custom_base_config_t;
 
 /**

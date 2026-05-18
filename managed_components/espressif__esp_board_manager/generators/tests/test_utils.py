@@ -23,8 +23,10 @@ from generators.utils.yaml_utils import (
     merge_yaml_data,
     load_board_yaml_file,
     load_board_yaml_strict,
+    load_yaml_mapping_from_text,
     BoardConfigYamlError,
 )
+from generators.utils.config_utils import apply_device_overrides, apply_peripheral_list_overrides
 from generators.settings import BoardManagerConfig
 
 
@@ -100,19 +102,19 @@ class TestFileUtils(unittest.TestCase):
             (close_project / 'CMakeLists.txt').write_text('cmake_minimum_required(VERSION 3.16)\nproject(close_project)\n')
             (close_project / 'components').mkdir()
 
-            # Start from a subdirectory of the deep project
-            start_dir = deep_project / 'main'
-            start_dir.mkdir()
+            # Start from a nested subdirectory of the deep project
+            start_dir = deep_project / 'main' / 'subdir' / 'level2'
+            start_dir.mkdir(parents=True)
 
             # Should find the deep project with default max_depth (10)
             found_root = find_project_root(start_dir)
             self.assertEqual(found_root, deep_project)
 
-            # With max_depth=2, should not find the deep project (needs 5 levels up)
+            # With max_depth=2, should not find the deep project (needs 3 levels up)
             found_root = find_project_root(start_dir, max_depth=2)
             self.assertIsNone(found_root)
 
-            # With max_depth=6, should find the deep project (needs 1 level up)
+            # With max_depth=6, should find the deep project
             found_root = find_project_root(start_dir, max_depth=6)
             self.assertEqual(found_root, deep_project)
 
@@ -313,6 +315,16 @@ class TestYamlUtils(unittest.TestCase):
         finally:
             yaml_file.unlink()
 
+    def test_load_yaml_mapping_from_text_matches_board_file_semantics(self):
+        """The text parser keeps single-file YAML semantics shared by board loaders."""
+        self.assertEqual(load_yaml_mapping_from_text('   \n', 'inline.yaml'), {})
+        self.assertEqual(load_yaml_mapping_from_text('# only a comment\n', 'inline.yaml'), {})
+        self.assertEqual(load_yaml_mapping_from_text('k: 1\n', 'inline.yaml'), {'k': 1})
+
+        with self.assertRaises(BoardConfigYamlError) as ctx:
+            load_yaml_mapping_from_text('- item\n', 'inline.yaml')
+        self.assertEqual(ctx.exception.reason, BoardConfigYamlError.REASON_NOT_A_MAPPING)
+
     def test_load_board_yaml_file_syntax_error(self):
         """Invalid YAML still raises syntax error (distinct from empty)."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False, encoding='utf-8') as f:
@@ -351,6 +363,77 @@ class TestYamlUtils(unittest.TestCase):
         self.assertEqual(merged['nested']['key1'], 'new_nested1')  # Overridden
         self.assertEqual(merged['nested']['key2'], 'nested2')  # Unchanged
         self.assertEqual(merged['nested']['key3'], 'nested3')  # New
+
+    def test_override_lists_merge_existing_and_append_new_entries(self):
+        """Override YAML can update existing entries and append new devices/peripherals."""
+        class Logger:
+            def warning(self, msg):
+                raise AssertionError(msg)
+
+            def debug(self, msg):
+                pass
+
+        logger = Logger()
+
+        base_peripherals = [
+            {
+                'name': 'i2c_master',
+                'type': 'i2c',
+                'config': {
+                    'port': 0,
+                    'pins': {'sda': 1, 'scl': 2},
+                },
+            },
+        ]
+        override_peripherals = [
+            {
+                'name': 'i2c_master',
+                'config': {
+                    'pins': {'sda': 8},
+                },
+            },
+            {
+                'name': 'gpio_extra',
+                'type': 'gpio',
+                'config': {'pin': 4},
+            },
+        ]
+
+        merged_peripherals = apply_peripheral_list_overrides(base_peripherals, override_peripherals, logger)
+        self.assertEqual(len(merged_peripherals), 2)
+        self.assertEqual(merged_peripherals[0]['config']['port'], 0)
+        self.assertEqual(merged_peripherals[0]['config']['pins'], {'sda': 8, 'scl': 2})
+        self.assertEqual(merged_peripherals[1]['name'], 'gpio_extra')
+
+        base_devices = [
+            {
+                'name': 'button_boot',
+                'type': 'button',
+                'config': {'active_level': 0},
+                'peripherals': [{'name': 'gpio_boot'}],
+            },
+        ]
+        override_devices = [
+            {
+                'name': 'button_boot',
+                'config': {'active_level': 1},
+                'peripherals': [{'name': 'gpio_extra'}],
+            },
+            {
+                'name': 'custom_sensor',
+                'type': 'custom',
+                'config': {'enabled': True},
+            },
+        ]
+
+        merged_devices = apply_device_overrides(base_devices, override_devices, logger)
+        self.assertEqual(len(merged_devices), 2)
+        self.assertEqual(merged_devices[0]['config']['active_level'], 1)
+        self.assertEqual(
+            [periph['name'] for periph in merged_devices[0]['peripherals']],
+            ['gpio_boot', 'gpio_extra'],
+        )
+        self.assertEqual(merged_devices[1]['name'], 'custom_sensor')
 
 
 class TestBoardManagerConfig(unittest.TestCase):

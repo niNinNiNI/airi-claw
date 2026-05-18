@@ -133,6 +133,42 @@ typedef struct app_extractor_t {
 static esp_err_t process_audio_frame(app_extractor_t *extractor, uint8_t *buffer, uint32_t buffer_size, uint32_t pts);
 
 /**
+ * @brief Suppress raw printf from precompiled library by redirecting stdout
+ * to /dev/null. Returns 0 on success, -1 on failure.
+ *
+ * Uses FILE* redirection because fcntl(F_DUPFD) is not supported by the
+ * UART VFS on ESP-IDF and always fails with ENOSYS.
+ */
+static FILE *s_devnull;
+static FILE *s_orig_stdout;
+
+static int suppress_stdout_begin(void)
+{
+    if (s_orig_stdout != NULL) {
+        return -2;
+    }
+    if (s_devnull == NULL) {
+        s_devnull = fopen("/dev/null", "w");
+    }
+    if (s_devnull == NULL) {
+        return -1;
+    }
+    fflush(stdout);
+    s_orig_stdout = stdout;
+    stdout = s_devnull;
+    return 0;
+}
+
+static void suppress_stdout_end(int status)
+{
+    if (status == 0 && s_orig_stdout != NULL) {
+        fflush(stdout);
+        stdout = s_orig_stdout;
+        s_orig_stdout = NULL;
+    }
+}
+
+/**
  * @brief File I/O wrapper functions for ESP Extractor
  */
 static void *_file_open(char *url, void *ctx)
@@ -194,7 +230,6 @@ static void audio_task(void *arg)
 {
     app_extractor_t *extractor = (app_extractor_t *)arg;
     audio_frame_item_t *frame_item;
-    uint32_t processed_frames = 0;
 
     while (extractor->audio_task_running) {
         if (xQueueReceive(extractor->audio_queue, &frame_item,
@@ -207,16 +242,9 @@ static void audio_task(void *arg)
             }
 
             free(frame_item);  // Free entire structure
-            processed_frames++;
-
-            // Log every 100 frames to reduce overhead
-            if (processed_frames % 100 == 0) {
-                ESP_LOGD(TAG, "Audio processed %" PRIu32 " frames", processed_frames);
-            }
         }
     }
 
-    ESP_LOGD(TAG, "Audio task stopped, processed %" PRIu32 " frames", processed_frames);
     extractor->audio_task_handle = NULL;
     vTaskDelete(NULL);
 }
@@ -313,7 +341,9 @@ static esp_err_t register_all_extractors(void)
         return ret;
     }
 
-    ESP_LOGD(TAG, "Extractors registered successfully");
+    /* Re-confirm after registration — some library versions reset the flag */
+    esp_mp4_extractor_show_parse_log(false);
+
     return ESP_OK;
 }
 
@@ -367,7 +397,6 @@ static esp_err_t register_audio_decoders(void)
     }
 #endif
 
-    ESP_LOGD(TAG, "Audio decoders registered successfully");
     return ESP_OK;
 }
 
@@ -401,9 +430,6 @@ static esp_err_t init_audio_decoder(app_extractor_t *extractor)
     // Set decoder type based on audio format
     switch (extractor->audio_format) {
     case EXTRACTOR_AUDIO_FORMAT_AAC: {
-        ESP_LOGD(TAG, "Using AAC decoder (sample_rate=%" PRIu32 ", channel=%u, bits=%u)",
-                 extractor->audio_sample_rate, extractor->audio_channels, extractor->audio_bits);
-
         // AAC decoder specific configuration
         esp_aac_dec_cfg_t aac_cfg = {
             .sample_rate = extractor->audio_sample_rate,
@@ -438,14 +464,10 @@ static esp_err_t init_audio_decoder(app_extractor_t *extractor)
         }
 
         extractor->audio_decoder_open = true;
-        ESP_LOGD(TAG, "AAC decoder initialized with parameters: sample_rate=%" PRIu32 ", channel=%u, bits=%u",
-                 extractor->audio_sample_rate, extractor->audio_channels, extractor->audio_bits);
         break;
     }
 
     case EXTRACTOR_AUDIO_FORMAT_MP3: {
-        ESP_LOGD(TAG, "Using MP3 decoder");
-
         // For MP3, we'll use the basic configuration without specific settings
         esp_audio_dec_cfg_t dec_cfg = {
             .type = ESP_AUDIO_TYPE_MP3,
@@ -715,7 +737,6 @@ static esp_err_t validate_mpeg_compatibility(app_extractor_t *extractor)
     if (extractor->has_video) {
         switch (extractor->video_format) {
         case EXTRACTOR_VIDEO_FORMAT_MJPEG:
-            ESP_LOGD(TAG, "Video: MJPEG format - ESP32-P4 hardware accelerated");
             break;
 
         case EXTRACTOR_VIDEO_FORMAT_H264:
@@ -768,8 +789,6 @@ static esp_err_t get_stream_info(app_extractor_t *extractor)
         return ret;
     }
 
-    ESP_LOGD(TAG, "Found %d audio and %d video streams", audio_num, video_num);
-
     // Get audio stream info if available
     if (audio_num > 0) {
         ret = esp_extractor_get_stream_info(extractor->extractor,
@@ -790,10 +809,6 @@ static esp_err_t get_stream_info(app_extractor_t *extractor)
             extractor->audio_channels = audio_info->channel;
             extractor->audio_bits = audio_info->bits_per_sample;
             extractor->audio_duration = stream_info.duration;
-
-            ESP_LOGD(TAG, "Audio: format=%d, %" PRIu32 "Hz, %dch, %dbits",
-                     (int)extractor->audio_format, audio_info->sample_rate,
-                     audio_info->channel, audio_info->bits_per_sample);
         }
     } else {
         extractor->has_audio = false;
@@ -815,10 +830,6 @@ static esp_err_t get_stream_info(app_extractor_t *extractor)
         extractor->video_height = video_info->height;
         extractor->video_fps = video_info->fps;
         extractor->video_duration = stream_info.duration;
-
-        ESP_LOGD(TAG, "Video: format=%d, %" PRIu32 "x%" PRIu32 ", %" PRIu32 "fps",
-                 (int)video_info->format, video_info->width, video_info->height,
-                 (uint32_t)video_info->fps);
     } else {
         ESP_LOGE(TAG, "No video streams found");
         return ESP_ERR_NOT_FOUND;
@@ -937,6 +948,12 @@ esp_err_t app_extractor_start(app_extractor_handle_t handle,
     app_extractor_t *extractor = (app_extractor_t *)handle;
     esp_err_t ret;
 
+    /* Silence verbose INFO logs from pre-compiled extractor library */
+    esp_log_level_set("Extractor", ESP_LOG_WARN);
+    esp_log_level_set("Data_Cache", ESP_LOG_WARN);
+    esp_log_level_set("MP4_PARSER", ESP_LOG_WARN);
+    esp_mp4_extractor_show_parse_log(false);
+
     // Close any existing extractor
     if (extractor->extractor != NULL) {
         esp_extractor_close(extractor->extractor);
@@ -985,8 +1002,17 @@ esp_err_t app_extractor_start(app_extractor_handle_t handle,
         return ret;
     }
 
+    /* Disable verbose parse log — library uses raw printf which
+     * show_parse_log(false) may not control. Redirect stdout to
+     * /dev/null during parse to discard the "sample:..." printf lines. */
+    esp_mp4_extractor_show_parse_log(false);
+    int saved_stdout = suppress_stdout_begin();
+
     // Parse stream information
     ret = esp_extractor_parse_stream_info(extractor->extractor);
+
+    suppress_stdout_end(saved_stdout);
+
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to parse stream info: %d", ret);
         return ret;
@@ -1022,8 +1048,6 @@ esp_err_t app_extractor_start(app_extractor_handle_t handle,
         }
     }
 
-    ESP_LOGD(TAG, "Extraction started: fps=%" PRIu32 "ms, audio=%s",
-             extractor->frame_interval_ms, extractor->extract_audio ? "yes" : "no");
     return ESP_OK;
 }
 
@@ -1040,15 +1064,17 @@ esp_err_t app_extractor_read_frame(app_extractor_handle_t handle)
         return ESP_ERR_NOT_FOUND;
     }
 
-    // Read the next frame
+    // Read the next frame (suppress raw printf from precompiled library)
     extractor_frame_info_t frame = {0};
+    int saved_stdout = suppress_stdout_begin();
     esp_err_t ret = esp_extractor_read_frame(extractor->extractor, &frame);
+    suppress_stdout_end(saved_stdout);
 
     if (ret == ESP_OK) {
         // Process the frame
         ret = process_frame(&frame, extractor);
     } else {
-        ESP_LOGW(TAG, "Failed to read frame: %d", ret);
+        ESP_LOGD(TAG, "Failed to read frame: %d", ret);
         extractor->eos_reached = true;
     }
 
