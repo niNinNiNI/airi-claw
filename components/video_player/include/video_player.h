@@ -19,6 +19,34 @@ esp_err_t video_player_start(void);
 esp_err_t video_player_stop(void);
 
 /**
+ * @brief Play a specific video file, optionally looping.
+ * If a video is already playing, switches to the new file.
+ *
+ * @param path  Full path to the video file (e.g., "/sdcard/videos/m01_idle_shake.mp4")
+ * @param loop  If true, replay the same file indefinitely; if false, play once and stop.
+ * @return ESP_OK on success
+ */
+esp_err_t video_player_play_file(const char *path, bool loop);
+
+/**
+ * @brief Switch to a new video file immediately.
+ * Shortcut for video_player_play_file(path, true).
+ *
+ * @param path  Full path to the video file
+ * @return ESP_OK on success
+ */
+esp_err_t video_player_switch_to(const char *path);
+
+/**
+ * @brief Get the path of the currently playing file.
+ *
+ * @param path      Output buffer for the path string
+ * @param path_size Size of the output buffer
+ * @return ESP_OK on success, ESP_ERR_NOT_FOUND if nothing is playing
+ */
+esp_err_t video_player_get_current(char *path, size_t path_size);
+
+/**
  * @brief Register a callback for on-screen button press during video playback.
  * Called from the touch task context — keep it short and non-blocking.
  */

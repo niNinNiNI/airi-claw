@@ -25,6 +25,7 @@
 #include "cap_im_wechat.h"
 #endif
 #include "app_config.h"
+#include "emotion_video.h"
 #include "video_player.h"
 
 #define APP_FATFS_PARTITION_LABEL "storage"
@@ -336,7 +337,6 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_board_manager_init());
     ESP_ERROR_CHECK(app_claw_ui_start());
     video_player_init();
-    video_player_start();
     ESP_ERROR_CHECK(init_fatfs());
     ESP_ERROR_CHECK(wifi_manager_init());
     ESP_ERROR_CHECK(http_server_init(&(http_server_config_t) {
@@ -402,6 +402,9 @@ void app_main(void)
 #if CONFIG_APP_CLAW_CAP_IM_LOCAL
     ESP_ERROR_CHECK(http_server_webim_bind_im());
 #endif
+
+    /* Start idle emotion video after all subsystems are ready */
+    emotion_video_set(EMOTION_VIDEO_M01_IDLE_SHAKE);
 
     register_wifi_command();
 

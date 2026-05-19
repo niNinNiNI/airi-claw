@@ -25,6 +25,7 @@
 #include "esp_timer.h"
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
@@ -58,12 +59,25 @@ static const char *TAG = "video_player";
 
 #define TOUCH_POLL_PERIOD_MS  30
 
+/* ---- command queue types ---- */
+typedef enum {
+    VIDEO_CMD_SWITCH_FILE,
+    VIDEO_CMD_STOP,
+} video_cmd_t;
+
+typedef struct {
+    video_cmd_t cmd;
+    char path[MAX_FILENAME_LEN];
+    bool loop;
+} video_cmd_msg_t;
+
+#define VIDEO_CMD_QUEUE_LEN  4
+
 /* ---- static state ---- */
 static esp_lcd_panel_handle_t s_panel;
 static void *s_lcd_buffer[2];
 static SemaphoreHandle_t s_vsync_sem;
 static app_stream_adapter_handle_t s_stream_adapter;
-
 
 static char *s_playlist[MAX_PLAYLIST_ITEMS];
 static int s_playlist_count;
@@ -71,7 +85,13 @@ static int s_current_index;
 
 static TaskHandle_t s_video_task_handle;
 static bool s_running;
-static int s_consecutive_failures;
+
+/* ---- single-file / command-driven playback state ---- */
+static QueueHandle_t s_video_cmd_queue;
+static bool s_single_file_mode;
+static bool s_loop_current;
+static char s_current_file_path[MAX_FILENAME_LEN];
+static bool s_stream_adapter_initialized;
 
 /* ---- touch button state ---- */
 static esp_lcd_touch_handle_t s_touch;
@@ -224,16 +244,14 @@ static void touch_task(void *arg)
         esp_lcd_touch_point_data_t point;
         uint8_t count = 0;
 
-        if (s_touch->config.interrupt_callback != NULL) {
-            esp_lcd_touch_get_data(s_touch, &point, &count, 1);
-        } else {
-            esp_lcd_touch_read_data(s_touch);
-            esp_lcd_touch_get_data(s_touch, &point, &count, 1);
-        }
+        esp_lcd_touch_read_data(s_touch);
+        esp_lcd_touch_get_data(s_touch, &point, &count, 1);
 
         bool hit = false;
         if (count > 0) {
-            hit = in_round_rect(point.x, point.y,
+            uint16_t tx = DISPLAY_WIDTH - point.x;
+            uint16_t ty = DISPLAY_HEIGHT - point.y;
+            hit = in_round_rect(tx, ty,
                                 s_btn_x, s_btn_y,
                                 VIDEO_BTN_WIDTH, VIDEO_BTN_HEIGHT,
                                 VIDEO_BTN_RADIUS);
@@ -279,48 +297,147 @@ static esp_err_t display_decoded_frame(uint8_t *buffer, uint32_t buffer_size,
     return ESP_OK;
 }
 
+/* ---- stream adapter lazy init ---- */
+
+static esp_err_t ensure_stream_adapter(void)
+{
+    if (s_stream_adapter_initialized) {
+        return ESP_OK;
+    }
+
+    app_stream_adapter_config_t adapter_config = {
+        .frame_cb = display_decoded_frame,
+        .user_data = NULL,
+        .decode_buffers = s_lcd_buffer,
+        .buffer_count = 2,
+        .buffer_size = DISPLAY_BUFFER_SIZE,
+        .audio_dev = NULL,
+        .jpeg_config = APP_STREAM_JPEG_CONFIG_DEFAULT_RGB565(),
+    };
+
+    esp_err_t ret = app_stream_adapter_init(&adapter_config, &s_stream_adapter);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Stream adapter init failed: %d", ret);
+        return ret;
+    }
+
+    s_stream_adapter_initialized = true;
+    ESP_LOGI(TAG, "Stream adapter initialized");
+    return ESP_OK;
+}
+
+/* ---- video task (command-driven state machine) ---- */
+
+static esp_err_t play_single_file(const char *path)
+{
+    esp_err_t ret = app_stream_adapter_set_file(s_stream_adapter, path, false);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set file: %s", path);
+        return ret;
+    }
+
+    ret = app_stream_adapter_start(s_stream_adapter);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start playback: %d", ret);
+        return ret;
+    }
+
+    return ESP_OK;
+}
+
+static void stop_current_playback(void)
+{
+    app_stream_adapter_stop(s_stream_adapter);
+}
+
 static void video_task(void *arg)
 {
-    uint32_t total_play_count = 0;
+    video_cmd_msg_t msg;
+    bool active = false;      /* currently playing a file */
+    bool loop_enabled = false;
+    char active_path[MAX_FILENAME_LEN] = {0};
+    int consecutive_failures = 0;
 
-    display_arbiter_acquire(DISPLAY_ARBITER_OWNER_VIDEO);
+    /* Wait for first command */
+    while (s_running) {
+        if (xQueueReceive(s_video_cmd_queue, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
+            if (msg.cmd == VIDEO_CMD_STOP) {
+                continue;
+            }
+            /* SWITCH_FILE — start playing */
+            strlcpy(active_path, msg.path, sizeof(active_path));
+            loop_enabled = msg.loop;
+            break;
+        }
+    }
 
-    while (s_running && display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
-        const char *current_file = s_playlist[s_current_index];
-        total_play_count++;
-        bool play_ok = false;
+    while (s_running) {
+        /* Acquire display before playback */
+        display_arbiter_acquire(DISPLAY_ARBITER_OWNER_VIDEO);
+        active = true;
 
-        ESP_LOGD(TAG, "=== Playing [%d/%d] #%u: %s ===",
-                 s_current_index + 1, s_playlist_count,
-                 total_play_count, strrchr(current_file, '/') + 1);
+        ESP_LOGD(TAG, "Playing: %s (loop=%d)", strrchr(active_path, '/') + 1, loop_enabled);
 
-        esp_err_t ret = app_stream_adapter_set_file(s_stream_adapter, current_file, false);
+        esp_err_t ret = play_single_file(active_path);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to set file: %s, moving to next", current_file);
-            goto next_file;
+            consecutive_failures++;
+            display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
+            active = false;
+            if (consecutive_failures >= MAX_CONSECUTIVE_FAILURES) {
+                ESP_LOGE(TAG, "%d consecutive failures, giving up", consecutive_failures);
+                break;
+            }
+            /* Wait for next command */
+            while (s_running) {
+                if (xQueueReceive(s_video_cmd_queue, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    if (msg.cmd == VIDEO_CMD_STOP) {
+                        continue;
+                    }
+                    strlcpy(active_path, msg.path, sizeof(active_path));
+                    loop_enabled = msg.loop;
+                    consecutive_failures = 0;
+                    break;
+                }
+            }
+            continue;
         }
 
-        ret = app_stream_adapter_start(s_stream_adapter);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to start playback: %d", ret);
-            goto next_file;
-        }
-
-        /* Monitor playback */
+        /* Monitor playback: check EOS and command queue */
         uint32_t stable_count = 0;
         uint32_t last_frames = 0;
+        bool switched = false;
 
         while (s_running && display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
+            /* Check for incoming commands */
+            video_cmd_msg_t new_msg;
+            if (xQueueReceive(s_video_cmd_queue, &new_msg, 0) == pdTRUE) {
+                if (new_msg.cmd == VIDEO_CMD_STOP) {
+                    stop_current_playback();
+                    display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
+                    active = false;
+                    switched = true;
+                    break;
+                }
+                if (new_msg.cmd == VIDEO_CMD_SWITCH_FILE) {
+                    stop_current_playback();
+                    strlcpy(active_path, new_msg.path, sizeof(active_path));
+                    loop_enabled = new_msg.loop;
+                    consecutive_failures = 0;
+                    switched = true;
+                    break;
+                }
+            }
+
+            /* Check EOS */
             bool eos = false;
             ret = app_stream_adapter_is_eos(s_stream_adapter, &eos);
-
             if (ret == ESP_OK && eos) {
                 break;
             }
 
+            /* Stall detection */
             app_stream_stats_t stats;
             ret = app_stream_adapter_get_stats(s_stream_adapter, &stats);
-
             if (ret == ESP_OK) {
                 if (stats.frames_processed == last_frames) {
                     stable_count++;
@@ -336,23 +453,38 @@ static void video_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(50));
         }
 
-        app_stream_adapter_stop(s_stream_adapter);
-        play_ok = true;
+        if (switched) {
+            continue;  /* already handled — new file set in active_path */
+        }
 
-next_file:
-        s_current_index = (s_current_index + 1) % s_playlist_count;
-        if (play_ok) {
-            s_consecutive_failures = 0;
-        } else {
-            s_consecutive_failures++;
-            if (s_consecutive_failures >= MAX_CONSECUTIVE_FAILURES) {
-                ESP_LOGE(TAG, "%d consecutive failures, giving up", s_consecutive_failures);
-                break;
+        /* Playback ended (EOS or stall) */
+        stop_current_playback();
+        consecutive_failures = 0;
+
+        if (!loop_enabled) {
+            display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
+            active = false;
+
+            /* Wait for next command */
+            while (s_running) {
+                if (xQueueReceive(s_video_cmd_queue, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    if (msg.cmd == VIDEO_CMD_STOP) {
+                        continue;
+                    }
+                    strlcpy(active_path, msg.path, sizeof(active_path));
+                    loop_enabled = msg.loop;
+                    break;
+                }
             }
         }
+        /* If loop_enabled, loop back to play the same file again */
     }
 
-    display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
+    if (active) {
+        stop_current_playback();
+        display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
+    }
+
     s_video_task_handle = NULL;
     vTaskDelete(NULL);
 }
@@ -421,6 +553,33 @@ esp_err_t video_player_init(void)
         ESP_LOGW(TAG, "Failed to allocate button buffer — button disabled");
     }
 
+    /* Create command queue for video_task */
+    s_video_cmd_queue = xQueueCreate(VIDEO_CMD_QUEUE_LEN, sizeof(video_cmd_msg_t));
+    if (!s_video_cmd_queue) {
+        ESP_LOGE(TAG, "Failed to create command queue");
+        return ESP_ERR_NO_MEM;
+    }
+
+    s_stream_adapter_initialized = false;
+    s_running = true;
+
+    /* Pre-initialize stream adapter */
+    ret = ensure_stream_adapter();
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Stream adapter init deferred");
+    }
+
+    /* Create video task (starts waiting for commands) */
+    BaseType_t task_ret = xTaskCreate(video_task, "video_task",
+                                       8 * 1024, NULL,
+                                       6, &s_video_task_handle);
+    if (task_ret != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create video task");
+        s_running = false;
+        return ESP_ERR_NO_MEM;
+    }
+
+    ESP_LOGI(TAG, "Video player initialized");
     return ESP_OK;
 #endif
 }
@@ -441,41 +600,8 @@ esp_err_t video_player_start(void)
         return ESP_OK;  /* graceful fallback */
     }
 
-    /* Initialize stream adapter (video-only, no audio decoding) */
-    app_stream_adapter_config_t adapter_config = {
-        .frame_cb = display_decoded_frame,
-        .user_data = NULL,
-        .decode_buffers = s_lcd_buffer,
-        .buffer_count = 2,
-        .buffer_size = DISPLAY_BUFFER_SIZE,
-        .audio_dev = NULL,
-        .jpeg_config = APP_STREAM_JPEG_CONFIG_DEFAULT_RGB565(),
-    };
-
-    ret = app_stream_adapter_init(&adapter_config, &s_stream_adapter);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Stream adapter init failed: %d", ret);
-        return ret;
-    }
-
-    /* Start video playback task */
-    s_running = true;
-    s_current_index = 0;
-    s_consecutive_failures = 0;
-
-    BaseType_t task_ret = xTaskCreate(video_task, "video_task",
-                                       8 * 1024, NULL,
-                                       6, &s_video_task_handle);
-    if (task_ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create video task");
-        s_running = false;
-        app_stream_adapter_deinit(s_stream_adapter);
-        s_stream_adapter = NULL;
-        return ESP_ERR_NO_MEM;
-    }
-
     /* Start touch polling task if touch controller is available */
-    if (s_touch) {
+    if (s_touch && s_touch_task_handle == NULL) {
         BaseType_t touch_ret = xTaskCreate(touch_task, "vid_touch",
                                            2 * 1024, NULL,
                                            4, &s_touch_task_handle);
@@ -485,6 +611,18 @@ esp_err_t video_player_start(void)
         }
     }
 
+    /* Send first file to video_task (playlist mode) */
+    s_single_file_mode = false;
+    s_loop_current = false;
+    s_current_index = 0;
+
+    video_cmd_msg_t msg = {
+        .cmd = VIDEO_CMD_SWITCH_FILE,
+        .loop = false,
+    };
+    strlcpy(msg.path, s_playlist[0], sizeof(msg.path));
+    xQueueSend(s_video_cmd_queue, &msg, pdMS_TO_TICKS(1000));
+
     ESP_LOGI(TAG, "Video player started with %d file(s)", s_playlist_count);
     return ESP_OK;
 }
@@ -493,27 +631,80 @@ esp_err_t video_player_stop(void)
 {
     s_running = false;
 
+    /* Send STOP command to video task */
+    if (s_video_cmd_queue && s_video_task_handle) {
+        video_cmd_msg_t msg = { .cmd = VIDEO_CMD_STOP };
+        xQueueSend(s_video_cmd_queue, &msg, 0);
+    }
+
     /* Wait for touch task to exit */
     while (s_touch_task_handle != NULL) {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    if (s_video_task_handle) {
-        /* Wait for video task to exit */
-        while (s_video_task_handle != NULL) {
-            vTaskDelay(pdMS_TO_TICKS(50));
-        }
-    }
-
-    if (s_stream_adapter) {
-        app_stream_adapter_deinit(s_stream_adapter);
-        s_stream_adapter = NULL;
+    /* Wait for video task to exit */
+    while (s_video_task_handle != NULL) {
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 
     display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
 
     playlist_cleanup();
 
+    return ESP_OK;
+}
+
+esp_err_t video_player_play_file(const char *path, bool loop)
+{
+    if (!path || !path[0]) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_video_cmd_queue) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        ESP_LOGE(TAG, "File not found: %s", path);
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    /* Update current tracking state */
+    strlcpy(s_current_file_path, path, sizeof(s_current_file_path));
+    s_single_file_mode = true;
+    s_loop_current = loop;
+
+    video_cmd_msg_t msg = {
+        .cmd = VIDEO_CMD_SWITCH_FILE,
+        .loop = loop,
+    };
+    strlcpy(msg.path, path, sizeof(msg.path));
+
+    if (xQueueSend(s_video_cmd_queue, &msg, pdMS_TO_TICKS(1000)) != pdTRUE) {
+        ESP_LOGE(TAG, "Command queue full, failed to send play_file");
+        return ESP_ERR_TIMEOUT;
+    }
+
+    ESP_LOGI(TAG, "Queued play_file: %s (loop=%d)", strrchr(path, '/') + 1, loop);
+    return ESP_OK;
+}
+
+esp_err_t video_player_switch_to(const char *path)
+{
+    return video_player_play_file(path, true);
+}
+
+esp_err_t video_player_get_current(char *path, size_t path_size)
+{
+    if (!path || path_size == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (s_current_file_path[0] == '\0') {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    strlcpy(path, s_current_file_path, path_size);
     return ESP_OK;
 }
 
