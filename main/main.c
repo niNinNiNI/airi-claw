@@ -403,8 +403,8 @@ void app_main(void)
     ESP_ERROR_CHECK(http_server_webim_bind_im());
 #endif
 
-    /* Start idle emotion video after all subsystems are ready */
-    emotion_video_set(EMOTION_VIDEO_M01_IDLE_SHAKE);
+    /* Start default emotion cycle after all subsystems are ready */
+    emotion_video_start_default_cycle();
 
     register_wifi_command();
 

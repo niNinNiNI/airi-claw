@@ -93,6 +93,13 @@ static bool s_loop_current;
 static char s_current_file_path[MAX_FILENAME_LEN];
 static bool s_stream_adapter_initialized;
 
+/* ---- playlist mode state ---- */
+static bool s_playlist_mode;
+static bool s_playlist_loop;
+static char **s_playlist_paths;
+static int s_playlist_len;
+static int s_playlist_idx;
+
 /* ---- touch button state ---- */
 static esp_lcd_touch_handle_t s_touch;
 static TaskHandle_t s_touch_task_handle;
@@ -415,6 +422,7 @@ static void video_task(void *arg)
                     stop_current_playback();
                     display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
                     active = false;
+                    s_playlist_mode = false;
                     switched = true;
                     break;
                 }
@@ -460,6 +468,35 @@ static void video_task(void *arg)
         /* Playback ended (EOS or stall) */
         stop_current_playback();
         consecutive_failures = 0;
+
+        if (s_playlist_mode) {
+            /* Advance to next playlist entry */
+            s_playlist_idx++;
+            if (s_playlist_idx >= s_playlist_len) {
+                if (s_playlist_loop) {
+                    s_playlist_idx = 0;
+                } else {
+                    display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
+                    active = false;
+                    s_playlist_mode = false;
+                    /* Wait for next command */
+                    while (s_running) {
+                        if (xQueueReceive(s_video_cmd_queue, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
+                            if (msg.cmd == VIDEO_CMD_STOP) {
+                                continue;
+                            }
+                            strlcpy(active_path, msg.path, sizeof(active_path));
+                            loop_enabled = msg.loop;
+                            break;
+                        }
+                    }
+                    continue;
+                }
+            }
+            strlcpy(active_path, s_playlist_paths[s_playlist_idx], sizeof(active_path));
+            loop_enabled = false;
+            continue;
+        }
 
         if (!loop_enabled) {
             display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
@@ -649,6 +686,17 @@ esp_err_t video_player_stop(void)
 
     display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
 
+    s_playlist_mode = false;
+    if (s_playlist_paths) {
+        for (int i = 0; i < s_playlist_len; i++) {
+            free(s_playlist_paths[i]);
+        }
+        free(s_playlist_paths);
+        s_playlist_paths = NULL;
+    }
+    s_playlist_len = 0;
+    s_playlist_idx = 0;
+
     playlist_cleanup();
 
     return ESP_OK;
@@ -669,10 +717,11 @@ esp_err_t video_player_play_file(const char *path, bool loop)
         return ESP_ERR_NOT_FOUND;
     }
 
-    /* Update current tracking state */
+    /* Switch to single-file mode, clear any active playlist */
     strlcpy(s_current_file_path, path, sizeof(s_current_file_path));
     s_single_file_mode = true;
     s_loop_current = loop;
+    s_playlist_mode = false;
 
     video_cmd_msg_t msg = {
         .cmd = VIDEO_CMD_SWITCH_FILE,
@@ -692,6 +741,76 @@ esp_err_t video_player_play_file(const char *path, bool loop)
 esp_err_t video_player_switch_to(const char *path)
 {
     return video_player_play_file(path, true);
+}
+
+esp_err_t video_player_play_playlist(const char **paths, int count, bool loop)
+{
+    if (!paths || count <= 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_video_cmd_queue) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    /* Verify all files exist */
+    for (int i = 0; i < count; i++) {
+        struct stat st;
+        if (stat(paths[i], &st) != 0) {
+            ESP_LOGE(TAG, "Playlist file not found: %s", paths[i]);
+            return ESP_ERR_NOT_FOUND;
+        }
+    }
+
+    /* Free any previous playlist */
+    if (s_playlist_paths) {
+        for (int i = 0; i < s_playlist_len; i++) {
+            free(s_playlist_paths[i]);
+        }
+        free(s_playlist_paths);
+        s_playlist_paths = NULL;
+    }
+
+    /* Copy playlist */
+    s_playlist_paths = calloc(count, sizeof(char *));
+    if (!s_playlist_paths) {
+        return ESP_ERR_NO_MEM;
+    }
+    for (int i = 0; i < count; i++) {
+        s_playlist_paths[i] = strdup(paths[i]);
+        if (!s_playlist_paths[i]) {
+            /* Cleanup on failure */
+            for (int j = 0; j < i; j++) {
+                free(s_playlist_paths[j]);
+            }
+            free(s_playlist_paths);
+            s_playlist_paths = NULL;
+            return ESP_ERR_NO_MEM;
+        }
+    }
+    s_playlist_len = count;
+    s_playlist_idx = 0;
+    s_playlist_loop = loop;
+    s_playlist_mode = true;
+
+    /* Update tracking state */
+    strlcpy(s_current_file_path, paths[0], sizeof(s_current_file_path));
+    s_single_file_mode = false;
+    s_loop_current = false;
+
+    /* Send first file to video_task */
+    video_cmd_msg_t msg = {
+        .cmd = VIDEO_CMD_SWITCH_FILE,
+        .loop = false,
+    };
+    strlcpy(msg.path, paths[0], sizeof(msg.path));
+
+    if (xQueueSend(s_video_cmd_queue, &msg, pdMS_TO_TICKS(1000)) != pdTRUE) {
+        ESP_LOGE(TAG, "Command queue full, failed to send play_playlist");
+        return ESP_ERR_TIMEOUT;
+    }
+
+    ESP_LOGI(TAG, "Queued playlist: %d file(s) (loop=%d)", count, loop);
+    return ESP_OK;
 }
 
 esp_err_t video_player_get_current(char *path, size_t path_size)

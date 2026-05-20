@@ -124,3 +124,28 @@ emotion_video_t emotion_video_from_name(const char *name)
 
     return EMOTION_VIDEO_COUNT;
 }
+
+esp_err_t emotion_video_start_default_cycle(void)
+{
+    const char *playlist[] = {
+        s_emotion_files[EMOTION_VIDEO_M01_IDLE_SHAKE],
+        s_emotion_files[EMOTION_VIDEO_M02_SWAY],
+        s_emotion_files[EMOTION_VIDEO_M03_CALM],
+    };
+
+    ESP_LOGI(TAG, "Starting default emotion cycle: m01 -> m02 -> m03");
+
+    esp_err_t ret = video_player_play_playlist(playlist, 3, true);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start default cycle: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    ensure_lock();
+    if (xSemaphoreTake(s_emotion_lock, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        s_current_emotion = EMOTION_VIDEO_M01_IDLE_SHAKE;
+        xSemaphoreGive(s_emotion_lock);
+    }
+
+    return ESP_OK;
+}

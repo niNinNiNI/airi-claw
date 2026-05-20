@@ -39,6 +39,17 @@ esp_err_t video_player_play_file(const char *path, bool loop);
 esp_err_t video_player_switch_to(const char *path);
 
 /**
+ * @brief Play a list of video files in sequence, optionally looping the entire playlist.
+ * If a video is already playing, switches to the first file in the playlist.
+ *
+ * @param paths  Array of full paths to video files
+ * @param count  Number of paths in the array
+ * @param loop   If true, replay the entire playlist indefinitely; if false, play once and stop.
+ * @return ESP_OK on success
+ */
+esp_err_t video_player_play_playlist(const char **paths, int count, bool loop);
+
+/**
  * @brief Get the path of the currently playing file.
  *
  * @param path      Output buffer for the path string

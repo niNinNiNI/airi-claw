@@ -64,6 +64,14 @@ const char *emotion_video_get_name(emotion_video_t emotion);
  */
 emotion_video_t emotion_video_from_name(const char *name);
 
+/**
+ * @brief Start the default emotion cycle: loop through m01_idle_shake,
+ *        m02_sway, and m03_calm in sequence indefinitely.
+ *
+ * @return ESP_OK on success
+ */
+esp_err_t emotion_video_start_default_cycle(void);
+
 #ifdef __cplusplus
 }
 #endif
