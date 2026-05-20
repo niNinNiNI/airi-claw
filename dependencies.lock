@@ -51,6 +51,10 @@ dependencies:
       path: ../../claw_capabilities/cap_skill_mgr
       rules:
       - if: $CONFIG{APP_CLAW_CAP_SKILL_MGR} == True
+    - name: cap_emotion
+      path: ../../claw_capabilities/cap_emotion
+      rules:
+      - if: $CONFIG{APP_CLAW_CAP_EMOTION} == True
     - name: cap_system
       path: ../../claw_capabilities/cap_system
       rules:
@@ -149,6 +153,12 @@ dependencies:
       rules:
       - if: $CONFIG{APP_CLAW_CAP_LUA} == True
       - if: $CONFIG{APP_CLAW_LUA_MODULE_DISPLAY} == True
+    - name: lua_module_emotion
+      path: ../../lua_modules/lua_module_emotion
+      rules:
+      - if: $CONFIG{APP_CLAW_CAP_LUA} == True
+      - if: $CONFIG{APP_CLAW_LUA_MODULE_EMOTION} == True
+      - if: $CONFIG{APP_CLAW_CAP_EMOTION} == True
     - name: lua_module_environmental_sensor
       path: ../../lua_modules/lua_module_environmental_sensor
       rules:
@@ -240,6 +250,12 @@ dependencies:
     dependencies: []
     source:
       path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_boards
+      type: local
+    version: '*'
+  cap_emotion:
+    dependencies: []
+    source:
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_emotion
       type: local
     version: '*'
   cap_files:
@@ -940,6 +956,12 @@ dependencies:
       path: ../../common/display_arbiter
     source:
       path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display
+      type: local
+    version: '*'
+  lua_module_emotion:
+    dependencies: []
+    source:
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_emotion
       type: local
     version: '*'
   lua_module_esp_heap:
