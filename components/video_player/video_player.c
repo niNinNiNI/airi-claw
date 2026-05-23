@@ -52,10 +52,13 @@ static const char *TAG = "video_player";
 #define VIDEO_BTN_BUF_SIZE     (VIDEO_BTN_WIDTH * VIDEO_BTN_HEIGHT * 2)
 
 /* RGB565 colors */
-#define VIDEO_BTN_COLOR_BG        0x18E3  /* dark grey */
-#define VIDEO_BTN_COLOR_BORDER    0xFFFF  /* white */
-#define VIDEO_BTN_COLOR_ICON      0xFFFF  /* white */
-#define VIDEO_BTN_COLOR_PRESSED   0x7BEF  /* lighter grey when pressed */
+#define VIDEO_BTN_COLOR_BG          0x18E3  /* dark grey (idle) */
+#define VIDEO_BTN_COLOR_BORDER      0xFFFF  /* white */
+#define VIDEO_BTN_COLOR_ICON        0xFFFF  /* white */
+#define VIDEO_BTN_COLOR_PRESSED     0x7BEF  /* lighter grey when pressed */
+#define VIDEO_BTN_COLOR_LISTENING   0xC841  /* red-ish (listening) */
+#define VIDEO_BTN_COLOR_SUCCESS     0x3E6B  /* green (success) */
+#define VIDEO_BTN_COLOR_ERROR       0xD965  /* red (error) */
 
 #define TOUCH_POLL_PERIOD_MS  30
 
@@ -106,6 +109,7 @@ static TaskHandle_t s_touch_task_handle;
 static uint8_t *s_btn_buffer;
 static int s_btn_x, s_btn_y;
 static bool s_btn_pressed;
+static int s_btn_state;  /* 0=idle, 1=listening, 2=success, 3=error */
 static video_player_button_cb_t s_button_cb;
 static void *s_button_cb_data;
 
@@ -198,14 +202,20 @@ static bool in_round_rect(int px, int py, int rx, int ry, int rw, int rh, int r)
     return (dx * dx + dy * dy) <= r * r;
 }
 
-static void draw_button_overlay(bool pressed)
+static void draw_button_overlay(bool pressed, int state)
 {
     int w = VIDEO_BTN_WIDTH;
     int h = VIDEO_BTN_HEIGHT;
     int r = VIDEO_BTN_RADIUS;
     int border = VIDEO_BTN_BORDER;
 
-    uint16_t bg = pressed ? VIDEO_BTN_COLOR_PRESSED : VIDEO_BTN_COLOR_BG;
+    uint16_t bg;
+    switch (state) {
+    case 1:  bg = VIDEO_BTN_COLOR_LISTENING; break;
+    case 2:  bg = VIDEO_BTN_COLOR_SUCCESS;   break;
+    case 3:  bg = VIDEO_BTN_COLOR_ERROR;     break;
+    default: bg = pressed ? VIDEO_BTN_COLOR_PRESSED : VIDEO_BTN_COLOR_BG; break;
+    }
 
     /* Fill with transparent black first (so corners outside the round rect stay transparent) */
     memset(s_btn_buffer, 0, VIDEO_BTN_BUF_SIZE);
@@ -231,14 +241,118 @@ static void draw_button_overlay(bool pressed)
         }
     }
 
-    /* draw stop icon — a small filled square in the centre */
-    int icon_sz = 14;
-    int ix = (w - icon_sz) / 2;
-    int iy = (h - icon_sz) / 2;
-    for (int dy = 0; dy < icon_sz; dy++) {
-        for (int dx = 0; dx < icon_sz; dx++) {
-            uint16_t *pixel = (uint16_t *)(s_btn_buffer + ((iy + dy) * w + (ix + dx)) * 2);
-            *pixel = VIDEO_BTN_COLOR_ICON;
+    /* draw microphone icon centred in the button */
+    int cx = w / 2;        /* centre x */
+    int mic_top = 12;      /* top of mic head */
+    int head_r = 7;        /* radius of mic head circle */
+    int head_cy = mic_top + head_r;  /* centre y of mic head */
+    int body_w = 5;        /* mic body width */
+    int body_h = 12;       /* mic body height */
+    int body_y = head_cy + head_r;  /* top of mic body */
+    int base_w = 14;       /* base line width */
+    int base_h = 3;        /* base line height */
+    int base_y = body_y + body_h + 1;  /* top of base line */
+
+    /* mic head — filled circle */
+    for (int dy = -head_r; dy <= head_r; dy++) {
+        for (int dx = -head_r; dx <= head_r; dx++) {
+            if (dx * dx + dy * dy <= head_r * head_r) {
+                int px = cx + dx;
+                int py = head_cy + dy;
+                if (px >= 0 && px < w && py >= 0 && py < h) {
+                    uint16_t *pixel = (uint16_t *)(s_btn_buffer + (py * w + px) * 2);
+                    *pixel = VIDEO_BTN_COLOR_ICON;
+                }
+            }
+        }
+    }
+
+    /* mic body — filled rectangle */
+    int body_x = cx - body_w / 2;
+    for (int dy = 0; dy < body_h; dy++) {
+        for (int dx = 0; dx < body_w; dx++) {
+            int px = body_x + dx;
+            int py = body_y + dy;
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+                uint16_t *pixel = (uint16_t *)(s_btn_buffer + (py * w + px) * 2);
+                *pixel = VIDEO_BTN_COLOR_ICON;
+            }
+        }
+    }
+
+    /* mic base — horizontal line */
+    int base_x = cx - base_w / 2;
+    for (int dy = 0; dy < base_h; dy++) {
+        for (int dx = 0; dx < base_w; dx++) {
+            int px = base_x + dx;
+            int py = base_y + dy;
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+                uint16_t *pixel = (uint16_t *)(s_btn_buffer + (py * w + px) * 2);
+                *pixel = VIDEO_BTN_COLOR_ICON;
+            }
+        }
+    }
+
+    /* recording dot (listening state) — small filled circle next to the mic */
+    if (state == 1) {
+        int dot_r = 3;
+        int dot_cx = cx + head_r + 8;
+        int dot_cy = head_cy - 3;
+        for (int dy = -dot_r; dy <= dot_r; dy++) {
+            for (int dx = -dot_r; dx <= dot_r; dx++) {
+                if (dx * dx + dy * dy <= dot_r * dot_r) {
+                    int px = dot_cx + dx;
+                    int py = dot_cy + dy;
+                    if (px >= 0 && px < w && py >= 0 && py < h) {
+                        uint16_t *pixel = (uint16_t *)(s_btn_buffer + (py * w + px) * 2);
+                        *pixel = VIDEO_BTN_COLOR_ICON;
+                    }
+                }
+            }
+        }
+    }
+
+    /* checkmark (success state) */
+    if (state == 2) {
+        int ck_cx = cx + head_r + 8;
+        int ck_cy = head_cy;
+        /* Simple checkmark using a few pixels: "V" shape */
+        for (int i = 0; i < 5; i++) {
+            int px = ck_cx - 3 + i;
+            int py = ck_cy - 2 + i;
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+                uint16_t *pixel = (uint16_t *)(s_btn_buffer + (py * w + px) * 2);
+                *pixel = VIDEO_BTN_COLOR_ICON;
+            }
+            /* upper arm */
+            int px2 = ck_cx + i;
+            int py2 = ck_cy + 2 - i;
+            if (px2 >= 0 && px2 < w && py2 >= 0 && py2 < h && i < 4) {
+                uint16_t *pixel2 = (uint16_t *)(s_btn_buffer + (py2 * w + px2) * 2);
+                *pixel2 = VIDEO_BTN_COLOR_ICON;
+            }
+        }
+    }
+
+    /* X mark (error state) */
+    if (state == 3) {
+        int x_cx = cx + head_r + 8;
+        int x_cy = head_cy;
+        int x_sz = 4;
+        for (int i = -x_sz; i <= x_sz; i++) {
+            /* \ diagonal */
+            int px = x_cx + i;
+            int py = x_cy + i;
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+                uint16_t *pixel = (uint16_t *)(s_btn_buffer + (py * w + px) * 2);
+                *pixel = VIDEO_BTN_COLOR_ICON;
+            }
+            /* / diagonal */
+            py = x_cy - i;
+            if (px >= 0 && px < w && py >= 0 && py < h) {
+                uint16_t *pixel = (uint16_t *)(s_btn_buffer + (py * w + px) * 2);
+                *pixel = VIDEO_BTN_COLOR_ICON;
+            }
         }
     }
 }
@@ -251,14 +365,28 @@ static void touch_task(void *arg)
         esp_lcd_touch_point_data_t point;
         uint8_t count = 0;
 
-        esp_lcd_touch_read_data(s_touch);
-        esp_lcd_touch_get_data(s_touch, &point, &count, 1);
+        esp_err_t ret = esp_lcd_touch_read_data(s_touch);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Touch read_data failed: %s", esp_err_to_name(ret));
+            vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_PERIOD_MS));
+            continue;
+        }
+
+        ret = esp_lcd_touch_get_data(s_touch, &point, &count, 1);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Touch get_data failed: %s", esp_err_to_name(ret));
+            vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_PERIOD_MS));
+            continue;
+        }
 
         bool hit = false;
         if (count > 0) {
-            uint16_t tx = DISPLAY_WIDTH - point.x;
-            uint16_t ty = DISPLAY_HEIGHT - point.y;
-            hit = in_round_rect(tx, ty,
+            /* Coordinates are already mirrored by esp_lcd_touch_get_data()
+             * according to the board config (mirror_x / mirror_y flags).
+             * No additional mirroring needed here. */
+            ESP_LOGD(TAG, "Touch at (%" PRIu16 ", %" PRIu16 ") btn=(%d,%d)",
+                     point.x, point.y, s_btn_x, s_btn_y);
+            hit = in_round_rect(point.x, point.y,
                                 s_btn_x, s_btn_y,
                                 VIDEO_BTN_WIDTH, VIDEO_BTN_HEIGHT,
                                 VIDEO_BTN_RADIUS);
@@ -267,6 +395,7 @@ static void touch_task(void *arg)
         s_btn_pressed = hit;
 
         if (hit && !was_pressed && s_button_cb) {
+            ESP_LOGI(TAG, "Button pressed, triggering callback");
             s_button_cb(s_button_cb_data);
         }
 
@@ -291,7 +420,7 @@ static esp_err_t display_decoded_frame(uint8_t *buffer, uint32_t buffer_size,
     esp_lcd_panel_draw_bitmap(s_panel, 0, 0, width, height, buffer);
 
     if (s_btn_buffer) {
-        draw_button_overlay(s_btn_pressed);
+        draw_button_overlay(s_btn_pressed, s_btn_state);
         esp_lcd_panel_draw_bitmap(s_panel, s_btn_x, s_btn_y,
                                   s_btn_x + VIDEO_BTN_WIDTH,
                                   s_btn_y + VIDEO_BTN_HEIGHT,
@@ -379,8 +508,19 @@ static void video_task(void *arg)
     }
 
     while (s_running) {
-        /* Acquire display before playback */
-        display_arbiter_acquire(DISPLAY_ARBITER_OWNER_VIDEO);
+        /* Acquire display before playback — wait if another owner holds it */
+        esp_err_t acq;
+        while (s_running && (acq = display_arbiter_acquire(DISPLAY_ARBITER_OWNER_VIDEO)) != ESP_OK) {
+            if (acq == ESP_ERR_INVALID_STATE) {
+                vTaskDelay(pdMS_TO_TICKS(500));
+            } else {
+                ESP_LOGE(TAG, "display acquire failed: %s", esp_err_to_name(acq));
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+        }
+        if (!s_running) {
+            break;
+        }
         active = true;
 
         ESP_LOGD(TAG, "Playing: %s (loop=%d)", strrchr(active_path, '/') + 1, loop_enabled);
@@ -463,6 +603,55 @@ static void video_task(void *arg)
 
         if (switched) {
             continue;  /* already handled — new file set in active_path */
+        }
+
+        /* Check if display was taken by another owner (e.g. Lua) */
+        if (!display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
+            stop_current_playback();
+            consecutive_failures = 0;
+            active = false;
+
+            ESP_LOGI(TAG, "Display taken by another owner, waiting to re-acquire");
+
+            while (s_running && !display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
+                video_cmd_msg_t wait_msg;
+                if (xQueueReceive(s_video_cmd_queue, &wait_msg, 0) == pdTRUE) {
+                    if (wait_msg.cmd == VIDEO_CMD_STOP) {
+                        s_playlist_mode = false;
+                        break;
+                    } else if (wait_msg.cmd == VIDEO_CMD_SWITCH_FILE) {
+                        strlcpy(active_path, wait_msg.path, sizeof(active_path));
+                        loop_enabled = wait_msg.loop;
+                        consecutive_failures = 0;
+                    }
+                }
+                esp_err_t acq_ret = display_arbiter_acquire(DISPLAY_ARBITER_OWNER_VIDEO);
+                if (acq_ret == ESP_OK) {
+                    active = true;
+                    break;
+                }
+                vTaskDelay(pdMS_TO_TICKS(500));
+            }
+
+            if (!s_running) {
+                break;
+            }
+            if (active) {
+                ESP_LOGI(TAG, "Display re-acquired, restarting playback");
+                continue;
+            }
+            /* STOP received while waiting — wait for next command */
+            while (s_running) {
+                if (xQueueReceive(s_video_cmd_queue, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    if (msg.cmd == VIDEO_CMD_STOP) {
+                        continue;
+                    }
+                    strlcpy(active_path, msg.path, sizeof(active_path));
+                    loop_enabled = msg.loop;
+                    break;
+                }
+            }
+            continue;
         }
 
         /* Playback ended (EOS or stall) */
@@ -606,6 +795,17 @@ esp_err_t video_player_init(void)
         ESP_LOGW(TAG, "Stream adapter init deferred");
     }
 
+    /* Start touch polling task if touch controller is available */
+    if (s_touch && s_touch_task_handle == NULL) {
+        BaseType_t touch_ret = xTaskCreate(touch_task, "vid_touch",
+                                           2 * 1024, NULL,
+                                           4, &s_touch_task_handle);
+        if (touch_ret != pdPASS) {
+            ESP_LOGW(TAG, "Failed to create touch task — button disabled");
+            s_touch_task_handle = NULL;
+        }
+    }
+
     /* Create video task (starts waiting for commands) */
     BaseType_t task_ret = xTaskCreate(video_task, "video_task",
                                        8 * 1024, NULL,
@@ -635,17 +835,6 @@ esp_err_t video_player_start(void)
     if (ret != ESP_OK || s_playlist_count == 0) {
         ESP_LOGI(TAG, "No video files, falling back to emote UI");
         return ESP_OK;  /* graceful fallback */
-    }
-
-    /* Start touch polling task if touch controller is available */
-    if (s_touch && s_touch_task_handle == NULL) {
-        BaseType_t touch_ret = xTaskCreate(touch_task, "vid_touch",
-                                           2 * 1024, NULL,
-                                           4, &s_touch_task_handle);
-        if (touch_ret != pdPASS) {
-            ESP_LOGW(TAG, "Failed to create touch task — button disabled");
-            s_touch_task_handle = NULL;
-        }
     }
 
     /* Send first file to video_task (playlist mode) */
@@ -832,4 +1021,9 @@ esp_err_t video_player_set_button_callback(video_player_button_cb_t cb, void *us
     s_button_cb = cb;
     s_button_cb_data = user_data;
     return ESP_OK;
+}
+
+void video_player_set_button_state(int state)
+{
+    s_btn_state = state;
 }

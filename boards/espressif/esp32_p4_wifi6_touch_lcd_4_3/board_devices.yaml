@@ -26,16 +26,21 @@ devices:
         frequency: 400000
 
   - name: audio_adc
-    chip: es8311  # Codec chip (ES8311)
+    chip: es7210  # Codec chip (ES7210) - dedicated ADC for microphone input
     type: audio_codec
     version: default
     config:
       # ADC Configuration (for audio input)
       adc_enabled: true
-      adc_max_channel: 2            # ES8311 support 1 ADC channel and 1 DAC echo channel, default:ADCL + DACR, refer 8311 datasheet REG44 `ADCDAT_SEL`
-      adc_channel_mask: "11"        # Enable both left and right channels
-      adc_channel_labels: [RE, FC]  # DAC reference and ADC microphone
-      mclk_enabled: true            # MCLK pin (GPIO13) is wired to ES8311; required for stable ADC sampling clock
+      adc_max_channel: 4
+      # The channel mask, 1-enable, 0-disable
+      # e.g."0001", bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable
+      # Using single MIC1 (standard I2S) to match reference project. TDM mode with
+      # 3+ mics requires specific I2S TDM configuration that the current I2S stereo
+      # setup doesn't support.
+      adc_channel_mask: "0001"         # Mic0 only (MIC1, standard I2S mode)
+      adc_channel_labels: ['NA', 'NA', 'NA', 'FL']  # MSB ~ LSB
+      adc_init_gain: 18                 # dB (matching reference project)
 
     # Peripheral configuration
     peripherals:
@@ -44,7 +49,7 @@ devices:
 
       # I2C interface for codec control
       - name: i2c_master
-        address: 0x30
+        address: 0x80
         frequency: 400000
 
   - name: fs_sdcard

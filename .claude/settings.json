@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/06_I2SCodec 按键触发/**)",
+      "Read(//home/nini/voice-server/docs/**)"
+    ],
+    "additionalDirectories": [
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/common/voice_ws_common",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_voice",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_asr/src",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_asr/skills/cap_asr"
+    ]
+  }
+}

@@ -64,6 +64,12 @@ esp_err_t video_player_get_current(char *path, size_t path_size);
  */
 esp_err_t video_player_set_button_callback(video_player_button_cb_t cb, void *user_data);
 
+/**
+ * @brief Set the on-screen button visual state.
+ * @param state  0=idle, 1=listening, 2=success, 3=error
+ */
+void video_player_set_button_state(int state);
+
 #ifdef __cplusplus
 }
 #endif

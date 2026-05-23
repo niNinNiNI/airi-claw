@@ -11,6 +11,14 @@ dependencies:
       path: ../../claw_capabilities/cap_voice
       rules:
       - if: $CONFIG{APP_CLAW_CAP_VOICE} == True
+    - name: cap_asr
+      path: ../../claw_capabilities/cap_asr
+      rules:
+      - if: $CONFIG{APP_CLAW_CAP_ASR} == True
+    - name: voice_ws_common
+      path: ../voice_ws_common
+      rules:
+      - if: $CONFIG{APP_CLAW_CAP_VOICE} == True || $CONFIG{APP_CLAW_CAP_ASR} == True
     - name: cap_im_platform
       path: ../../claw_capabilities/cap_im_platform
       rules:
@@ -86,6 +94,10 @@ dependencies:
       rules:
       - if: $CONFIG{ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT} == True
       - if: $CONFIG{APP_CLAW_ENABLE_EMOTE} == True
+    - name: video_player
+      path: ../../../application/edge_agent/components/video_player
+      rules:
+      - if: $CONFIG{APP_CLAW_CAP_ASR} == True
     - name: lua_driver_adc
       path: ../../lua_modules/lua_driver_adc
       rules:
@@ -244,6 +256,12 @@ dependencies:
     dependencies: []
     source:
       path: /home/nini/esp-claw-master_1/esp-claw-master/application/edge_agent/components/app_config
+      type: local
+    version: '*'
+  cap_asr:
+    dependencies: []
+    source:
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_asr
       type: local
     version: '*'
   cap_boards:
@@ -1039,6 +1057,12 @@ dependencies:
       version: '*'
     source:
       path: /home/nini/esp-claw-master_1/esp-claw-master/application/edge_agent/components/video_player
+      type: local
+    version: '*'
+  voice_ws_common:
+    dependencies: []
+    source:
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/common/voice_ws_common
       type: local
     version: '*'
   wifi_manager:
