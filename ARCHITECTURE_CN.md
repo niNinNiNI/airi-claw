@@ -40,7 +40,8 @@
 | 图形框架 | LVGL v9.4.0 |
 | 网络协议 | Wi-Fi 802.11 b/g/n, HTTP/HTTPS, WebSocket, mDNS |
 | LLM 后端 | OpenAI, Anthropic, 阿里云百炼 (Qwen), DeepSeek, 自定义端点 |
-| IM 平台 | Telegram, QQ, 飞书, 微信 |
+| IM 平台 | Telegram, QQ, 飞书, 微信, WebIM |
+| 音频 | Opus 编解码, PCM, I2S 音频输出, 语音识别 (ASR) |
 | 构建系统 | CMake + ESP-IDF 组件管理 |
 
 ### 支持的硬件
@@ -105,7 +106,7 @@ ESP-IDF（Espressif IoT Development Framework）是乐鑫官方提供的开发�
 - CMake 构建系统
 
 可以理解为"ESP32 的 SDK（软件开发工具包）"。
-</details>〔方案選單〕
+</details>
 
 ---
 
@@ -130,8 +131,9 @@ ESP-Claw 采用严格的分层架构，自底向上共 8 层：
 │  │ 推理循环 │ 事件匹配路由   │ 长期记忆  │ 技能管理 │ │
 │  └─────────┴──────────────┴──────────┴─────────┘ │
 ├──────────────────────────────────────────────────┤
-│  能力层 (components/claw_capabilities/ 18 个组件)   │
-│  Lua ｜ MCP ｜ 文件 ｜ 语音 ｜ 搜索 ｜ 调度 ｜ IM   │
+│  能力层 (components/claw_capabilities/ 22 个组件)   │
+│  Lua ｜ MCP ｜ 文件 ｜ 语音TTS｜ 语音ASR ｜ 情绪   │
+│  搜索 ｜ 调度 ｜ IM(QQ/TG/WX/FS) ｜ 系统 ｜ 时间    │
 ├──────────────────────────────────────────────────┤
 │  Lua 脚本与硬件模块 (components/lua_modules/ 31 个) │
 │  GPIO ｜ I2C ｜ ADC ｜ 摄像头 ｜ 音频 ｜ 显示 ｜ IMU │
@@ -147,7 +149,7 @@ ESP-Claw 采用严格的分层架构，自底向上共 8 层：
 ### 数据流概览
 
 ```
-外部输入 (IM消息/定时器/传感器)
+外部输入 (IM消息/定时器/传感器/语音)
        │
        ▼
   ┌─────────────┐     ┌──────────────┐
@@ -165,7 +167,7 @@ ESP-Claw 采用严格的分层架构，自底向上共 8 层：
          │  返回结果          │  返回文本/工具调用
          ▼                   ▼
   ┌─────────────────────────────────────┐
-  │         输出 (IM 回复 / 动作执行)      │
+  │   输出 (IM 回复 / 动作执行 / 语音)     │
   └─────────────────────────────────────┘
 ```
 
@@ -181,7 +183,7 @@ esp-claw-master/
 │   └── tools/cmake/           # 构建辅助脚本
 ├── components/                # 可复用组件
 │   ├── claw_modules/          # 核心引擎 (5 个)
-│   ├── claw_capabilities/     # 能力组件 (18 个)
+│   ├── claw_capabilities/     # 能力组件 (22 个)
 │   ├── common/                # 公共组件 (11 个)
 │   └── lua_modules/           # Lua 模块 (31 个)
 ├── docs/                      # 文档站点 (Astro)
@@ -256,7 +258,7 @@ esp-claw-master/
 
 阶段 7: 初始化视频播放器
   video_player_init()
-  └─ 准备 SD 卡 MP4/AVI 视频播放能力
+  └─ 准备 SD 卡 MP4/AVI 视频播放能力（在挂载FATFS之前，为后续FATFS访问做准备）
 
 阶段 8: 挂载文件系统
   init_fatfs()
@@ -272,10 +274,11 @@ esp-claw-master/
   └─ 注册 REST API: 配置读写、Wi-Fi 状态、设备重启、微信登录
   └─ 启动 Captive DNS 配网门户
 
-阶段 11: 启动 Wi-Fi 连接
+阶段 11: 启动 Wi-Fi 连接并等待
   wifi_manager_start()
   └─ 同时启动 STA 模式（连接配置的 Wi-Fi）和 AP 模式（配网热点）
   └─ 等待 30 秒 STA 连接，超时则降级为纯 AP 模式
+  └─ 注册 on_wifi_state_changed 回调（更新网络表情图标）
 
 阶段 12: 启动 Agent 引擎
   app_claw_start()
@@ -285,9 +288,12 @@ esp-claw-master/
   http_server_webim_bind_im()
   └─ 将本地 Web 聊天接入出站事件总线
 
-阶段 14: 进入空闲状态
-  emotion_video_set(M01_IDLE_SHAKE)
-  └─ 播放角色闲置动画，系统就绪
+阶段 14: 启动默认情绪动画并注册 CLI 命令
+  emotion_video_start_default_cycle()
+  └─ 启动默认情绪动画循环（角色呼吸/摇动动画）
+  └─ register_wifi_command() — 注册串口 Wi-Fi 配置命令
+  └─ 可选: 启动内存监控任务 (mem_mon, 4KB 栈, 优先级 1)
+  └─ 释放运行时状态内存 (app_free_runtime_state)
 ```
 
 ### 3.2 app_claw_start() 详细初始化
@@ -303,17 +309,19 @@ esp-claw-master/
    ├─ 加载路由规则文件: /fatfs/router_rules/router_rules.json
    ├─ 创建 FreeRTOS 任务: 8KB 栈, 优先级 5
    └─ 配置: core_submit_timeout=1s, core_receive_timeout=130s
+   └─ 默认将消息路由给 Agent (llm_enabled 时)
 
 3. 初始化 Scheduler (定时任务)
    cap_scheduler_init()
    ├─ 加载定时规则: /fatfs/scheduler/schedules.json
    ├─ 创建 FreeRTOS 任务: 6KB 栈, 优先级 5
-   └─ 每秒 tick，最大 32 个定时任务
+   ├─ 每秒 tick，最大 32 个定时任务
+   └─ persist_after_fire: 触发后持久化状态
 
 4. 初始化记忆系统
    init_memory()
-   ├─ 完整模式 (FULL): 启用异步长期记忆提取
-   └─ 轻量模式 (LIGHTWEIGHT): 仅使用 MEMORY.md 文本文件
+   ├─ 完整模式 (CONFIG_APP_CLAW_MEMORY_MODE_FULL): 启用异步长期记忆提取
+   └─ 轻量模式 (非 FULL): 仅使用 MEMORY.md 文本文件
 
 5. 初始化技能系统
    init_skills()
@@ -321,7 +329,9 @@ esp-claw-master/
 
 6. 初始化所有能力组
    app_capabilities_init()
-   └─ 根据 enabled_cap_groups 配置选择性注册 18 个能力组
+   ├─ 根据 enabled_cap_groups 配置选择性注册 22 个能力组
+   ├─ 对每个启用的组调用 prepare() → register()
+   └─ 设置 LLM 可见能力组 (llm_visible_cap_groups)
 
 7. 注册 IM 出站绑定
    claw_event_router_register_outbound_binding()
@@ -335,7 +345,7 @@ esp-claw-master/
    claw_core_init()
    ├─ 创建请求/响应队列
    ├─ 初始化 LLM 后端 (OpenAI/Anthropic/Custom)
-   └─ 注册 5 个上下文提供者 (见 §4.1)
+   └─ 注册 6 个上下文提供者 (见 §4.1)
 
 9. 启动 claw_core
    claw_core_start()
@@ -347,9 +357,10 @@ esp-claw-master/
 11. 启动 Scheduler
     cap_scheduler_start()
 
-12. 启动时间同步
+12. 启动时间同步 (如果启用)
     cap_time_sync_service_start()
-    └─ SNTP 时间同步，首次成功后触发 Scheduler 时间基准重置
+    ├─ SNTP 时间同步
+    └─ 首次成功触发 app_time_sync_success() → Scheduler 时间基准重置
 
 13. 启动 CLI (如果启用)
     app_claw_cli_start()
@@ -368,8 +379,9 @@ esp-claw-master/
 | `claw_event_router` | 8KB | 5 | 事件匹配与路由分发 |
 | `cap_scheduler` | 6KB | 5 | 定时任务触发 |
 | `http_restart` | 2KB | 5 | 延迟 500ms 重启 |
-| `mem_mon` | 4KB | 1 | 内存监控（调试用） |
+| `mem_mon` | 4KB | 1 | 内存监控（调试用，默认关闭） |
 | `wifi_reconnect` | (定时器) | - | Wi-Fi 指数退避重连 |
+| Lua 异步脚本 | 动态分配 | 动态 | `run_script_async` 运行时创建 |
 
 ### 📖 技术概念讲解
 
@@ -519,7 +531,7 @@ ESP-Claw 使用 SNTP 从互联网时间服务器获取当前时间。虽然首�
   │          claw_core_task                 │
   │                                         │
   │  1. 从队列取出请求                        │
-  │  2. 收集上下文 (Context Providers × 5)    │
+  │  2. 收集上下文 (Context Providers × 6)    │
   │  3. 构建 LLM 请求 (系统提示词 + 历史 + 工具) │
   │  4. 调用 LLM API                        │
   │  5. 如果返回工具调用:                     │
@@ -562,11 +574,11 @@ typedef struct {
 
 #### 上下文提供者 (Context Provider)
 
-系统注册了 **5 个上下文提供者**，在每次推理前动态收集上下文信息：
+系统注册了 **6 个上下文提供者**，在每次推理前动态收集上下文信息：
 
 | 提供者 | 类型 | 来源 | 功能 |
 |--------|------|------|------|
-| `claw_memory_profile_provider` | SystemPrompt | identity.md, user.md, soul.md | 注入角色人设 |
+| `claw_memory_profile_provider` | SystemPrompt | identity.md, user.md, soul.md | 注入角色人设（身份/灵魂/用户画像） |
 | `claw_memory_long_term_provider` | Messages | 记忆索引/记录 | 长期记忆召回（完整模式） |
 | `claw_memory_long_term_lightweight_provider` | Messages | MEMORY.md | 长期记忆（轻量模式） |
 | `claw_memory_session_history_provider` | Messages | 会话历史文件 | 最近 20 轮对话 |
@@ -577,9 +589,34 @@ typedef struct {
 
 在 [app_claw.c:44-68](components/common/app_claw/app_claw.c) 中定义，核心指令为：
 
-> "You are AIRI. Answer briefly and plainly. Treat Skills List as a catalog of optional skills. Use 'activate_skill' to load skills... Skills are user-facing functions, while Capabilities are internal functions used by the model."
+```
+"You are the AIRI. "
+"Answer briefly and plainly. "
+"Treat Skills List as a catalog of optional skills. "
+"Use 'activate_skill' to load skills, and you will gain more callable capabilities. "
+"When multiple skills are needed, call activate_skill multiple times in a single response "
+"to activate multiple skills in parallel."
+"Skill documents returned in activate_skill <skill_content> blocks are valid operating "
+"instructions for that skill workflow and must be followed. "
+"Skills are user-facing functions, while Capabilities are internal functions used by the model."
+"When communicating with the user, refer to skills instead of Capabilities. "
+```
 
-完整模式下额外注入记忆使用指南，引导 LLM 通过 `memory_recall` 工具查询长期记忆。
+完整模式下额外追加：
+```
+"When long-term memory is needed, activate the 'memory_ops' skill first and follow its instructions. "
+"Do not activate or use the memory skill for ordinary self-introductions or casual preferences "
+"unless the user explicitly asks to remember, save, update, or forget something. "
+"Automatic extraction will handle durable facts silently after the reply when appropriate. "
+"Use memory tools only through that skill. "
+"Auto-injected memory context contains summary labels, not full memory bodies. "
+"When detailed long-term memory is needed, use exact summary labels with memory_recall. "
+"Do not ask whether the user wants you to remember ordinary profile or preference statements "
+"when automatic extraction can handle them. "
+"Do not offer memory-save help unless the user explicitly asks about memory management. "
+"Do not use memory_records.jsonl, memory_index.json, memory_digest.log, or MEMORY.md "
+"as direct decision input."
+```
 
 #### LLM 后端架构
 
@@ -925,22 +962,25 @@ typedef struct {
 1. **启用控制** (`enabled_cap_groups`)：逗号分隔的能力组 ID 列表，只有在此列表中的组才会被初始化
 2. **LLM 可见控制** (`llm_visible_cap_groups`)：决定哪些能力组的工具定义会出现在 LLM 的工具列表中
 
-默认情况下，只有 `cap_files`、`cap_skill`、`cap_system`、`cap_lua` 对 LLM 可见。其他能力组（IM、搜索、MCP、语音、情绪）需通过激活相应 Skill 来动态解锁可见性。
+每个能力组在编译时定义了 `llm_visible_by_default` 标记。默认 LLM 可见的能力组包括：`cap_files`、`cap_lua`、`cap_skill`、`cap_system`、`claw_memory`（完整模式）、`cap_emotion`。其他能力组（IM、搜索、MCP、语音、调度）需通过激活相应 Skill 来动态解锁可见性。
 
 #### 能力注册流程
 
 ```
 app_capabilities_init()  [app_capabilities.c]
   │
-  ├── 遍历 enabled_cap_groups 配置
+  ├── claw_cap_init() — 初始化能力系统
+  │
+  ├── 解析 enabled_cap_groups 配置
   │
   ├── 对每个启用的组:
-  │   ├── 调用 claw_cap_register_group(&group)
-  │   ├── 调用 group_init()   (如果存在)
-  │   └── 调用 group_start()  (如果存在)
+  │   ├── prepare()   (如果存在 — 设置配置、凭据等)
+  │   ├── register()  (注册组和描述符到能力系统)
+  │   └── 记录 LLM 可见性标记
   │
-  └── 调用 claw_cap_start_all()
-      └── 将所有能力状态设为 STARTED
+  ├── claw_cap_set_llm_visible_groups() — 设置 LLM 可见能力组
+  │
+  └── claw_cap_start_all() — 启动所有能力
 ```
 
 ### 📖 技术概念讲解
@@ -974,7 +1014,7 @@ LLM 处理工具调用的方式是把所有可用工具的**名称 + 描述 + JS
 
 更关键的是：**工具越多，LLM 越容易选错工具**。如果用户说"帮我打开灯"，而系统中有 `lua_gpio_write`、`mqtt_publish`、`light_on`、`homeassistant_control` 四个类似工具，LLM 可能选了不合适的那个。
 
-通过可见性控制：默认只暴露核心工具（文件、系统、Lua），当用户说"帮我控制灯光"时，LLM 先激活 `light_switch` skill，该 skill 解锁 `lua` 和 `gpio` 能力组。这样 LLM 只有在需要时才看到相关的工具。
+通过可见性控制：默认只暴露核心工具（文件、系统、Lua、情绪），当用户说"帮我控制灯光"时，LLM 先激活 `light_switch` skill，该 skill 解锁 `lua` 和 `files` 能力组。这样 LLM 只有在需要时才看到相关的工具。
 </details>
 
 ---
@@ -983,7 +1023,7 @@ LLM 处理工具调用的方式是把所有可用工具的**名称 + 描述 + JS
 
 **源码位置**: [components/claw_modules/claw_memory/](components/claw_modules/claw_memory/)
 
-记忆系统让 Agent 具备跨会话的信息持久化能力。支持两种运行模式。
+记忆系统让 Agent 具备跨会话的信息持久化能力。支持两种运行模式，由 `CONFIG_APP_CLAW_MEMORY_MODE_FULL` 配置。
 
 #### 完整模式 (FULL)
 
@@ -1046,7 +1086,7 @@ LLM 调用 memory_recall(summary_labels=["用户喜好", "设备配置"])
 
 #### 轻量模式 (LIGHTWEIGHT)
 
-仅使用单个 `MEMORY.md` 文件。LLM 直接读取该文件作为上下文，不进行结构化提取和索引。
+仅使用单个 `MEMORY.md` 文件。LLM 直接读取该文件作为上下文，不进行结构化提取和索引。完整模式下也会同步更新该文件以确保人类可读。
 
 #### 会话历史
 
@@ -1231,88 +1271,146 @@ metadata:
 
 ## 5. 能力层详解
 
-18 个能力组件位于 [components/claw_capabilities/](components/claw_capabilities/) 。以下是每个能力的详细工作原理。
+**22 个能力组件**位于 [components/claw_capabilities/](components/claw_capabilities/) 。以下按 `llm_visible_by_default` 分组介绍。每个能力组在编译时由对应的 `CONFIG_APP_CLAW_CAP_xxx` 控制是否启用。
 
-### cap_boards — 板卡管理
-- **工具**: `board_info` — 查询当前板卡型号、芯片、外设列表
-- **实现**: 调用 `esp_board_manager` API 获取板卡元数据
+### 默认对 LLM 可见的能力组 (llm_visible_by_default = true)
 
-### cap_cli — 命令行接口
-- **工具**: `cli_exec` — 执行控制台命令并返回输出
-- **实现**: 提供 FreeRTOS 控制台 REPL，支持注册自定义命令
+这些能力组在系统启动后自动对 LLM 可见，不需要通过技能激活：
 
-### cap_emotion — 情绪表达
-- **工具**: `set_emotion` — 切换角色表情动画
-- **实现**: 调用 `emotion_video_set()` 切换 Hiyori 角色的 10 种 MP4 动画
-
-### cap_files — 文件操作
+#### cap_files — 文件操作
+- **能力 ID**: `cap_files`
 - **工具**: `file_read`, `file_write`, `file_list`, `file_delete`, `file_search`
 - **实现**: 标准 POSIX 文件 API，操作 `/fatfs/` 下的文件
+- **初始化**: 通过 `cap_files_set_base_dir()` 设置根目录
 
-### cap_im_local — 本地 Web IM
+#### cap_lua — Lua 脚本引擎
+- **能力 ID**: `cap_lua`
+- **工具**: `run_script` (同步), `run_script_async` (异步), `list_scripts`, `write_script`, `delete_script`
+- **实现**: 嵌入式 Lua 5.5 运行时，31 个预注册模块，支持 LLM 动态编写和执行脚本
+- **初始化**: 添加 Lua 包路径（`/fatfs/scripts/builtin`、`/fatfs/scripts/builtin/lib`），注册所有 Lua 模块，设置技能根目录
+
+#### cap_skill_mgr — 技能管理
+- **能力 ID**: `cap_skill`
+- **工具**: `activate_skill` (由 claw_skill 提供)
+- **实现**: 解析 SKILL.md frontmatter，动态启用能力组可见性
+
+#### cap_system — 系统操作
+- **能力 ID**: `cap_system`
+- **工具**: `system_info`, `system_restart`, `system_console`
+- **实现**: 获取内存/Flash 信息，触发设备重启
+
+#### cap_emotion — 情绪表达 (新增)
+- **能力 ID**: `cap_emotion`
+- **工具**: `set_emotion` — 切换角色表情动画
+- **实现**: 调用 `emotion_video_set()` 切换角色动画（10 种情绪 MP4 动画）
+
+#### claw_memory — 记忆管理（完整模式）
+- **能力 ID**: `claw_memory`
+- **工具**: `memory_recall`, `memory_store`, `memory_search`（具体工具由 claw_memory 提供）
+- **实现**: 结构化记忆的读写和管理
+
+### 默认对 LLM 不可见的能力组 (llm_visible_by_default = false)
+
+这些能力组需要通过激活技能来动态解锁：
+
+#### cap_im_local — 本地 Web IM
+- **能力 ID**: `cap_im_local`
 - **工具**: `local_send_message` — 向本地 Web 聊天发送消息
 - **事件源**: WebSocket 消息 → 发布 `message` 事件到 Event Router
 
-### cap_im_platform — 统一 IM 平台
-- **包含**: QQ, Telegram, 飞书, 微信 四个子模块
-- **工具**: `{platform}_send_message` — 发送消息到对应平台
-- **事件源**: 各平台 WebSocket/长轮询 → 发布 `message` 事件
-- **微信特殊流程**: 支持二维码扫码登录 (`cap_im_wechat_qr_login_start`)
+#### cap_im_qq — QQ 集成
+- **能力 ID**: `cap_im_qq`
+- **工具**: `qq_send_message` — 发送消息到 QQ
+- **事件源**: QQ WebSocket → 发布 `message` 事件
+- **初始化**: 设置附件存储路径和 QQ 凭据（app_id + app_secret）
 
-### cap_llm_inspect — LLM 视觉检查
-- **工具**: `llm_inspect` — 使用 LLM 分析图片内容
-- **实现**: 独立调用 LLM Vision API（不同于主 Agent 循环），返回分析文本
+#### cap_im_feishu — 飞书集成
+- **能力 ID**: `cap_im_feishu`
+- **工具**: `feishu_send_message` — 发送消息到飞书
+- **事件源**: 飞书 WebSocket → 发布 `message` 事件
+- **初始化**: 设置附件存储路径和飞书凭据（app_id + app_secret）
 
-### cap_lua — Lua 脚本引擎
-- **工具**: `run_script` (同步), `run_script_async` (异步), `list_scripts`, `write_script`, `delete_script`
-- **实现**: 嵌入式 Lua 5.5 运行时，31 个预注册模块，支持 LLM 动态编写和执行脚本
+#### cap_im_tg — Telegram 集成
+- **能力 ID**: `cap_im_tg`
+- **工具**: `tg_send_message` — 发送消息到 Telegram
+- **事件源**: Telegram WebSocket → 发布 `message` 事件
+- **初始化**: 设置附件存储路径和 Telegram Bot Token
 
-### cap_mcp_client — MCP 客户端
-- **工具**: `mcp_connect`, `mcp_list_tools`, `mcp_call_tool`
-- **实现**: 使用 `espressif/mcp-c-sdk` 通过 WebSocket 连接外部 MCP Server，将远程工具注册为本地能力
+#### cap_im_wechat — 微信集成
+- **能力 ID**: `cap_im_wechat`
+- **工具**: `wechat_send_message` — 发送消息到微信
+- **事件源**: 微信 WebSocket → 发布 `message` 事件
+- **初始化**: 设置附件存储路径和微信客户端配置（token、base_url、account_id）
+- **特殊流程**: 支持二维码扫码登录 (`cap_im_wechat_qr_login_start`)
 
-### cap_mcp_server — MCP 服务端
-- **工具**: 无（被动服务）
-- **实现**: 将本地能力暴露为标准 MCP 工具，接受外部 MCP Client 调用
-
-### cap_router_mgr — 路由规则管理
-- **工具**: `router_list`, `router_add`, `router_update`, `router_delete`
-- **实现**: CRUD 操作 `/fatfs/router_rules/router_rules.json` 文件
-
-### cap_scheduler — 定时调度器
+#### cap_scheduler — 定时调度器
+- **能力 ID**: `cap_scheduler`
 - **工具**: `schedule_list`, `schedule_add`, `schedule_delete`
 - **实现**: 定时触发事件发布到 Event Router
 - **调度类型**: `once` (一次性), `interval` (间隔), `cron` (5 字段 cron 表达式)
 - **持久化**: 定时规则保存在 `/fatfs/scheduler/schedules.json`
 
-### cap_session_mgr — 会话管理
+#### cap_mcp_client — MCP 客户端
+- **能力 ID**: `cap_mcp_client`
+- **工具**: `mcp_connect`, `mcp_list_tools`, `mcp_call_tool`
+- **实现**: 使用 `espressif/mcp-c-sdk` 通过 WebSocket 连接外部 MCP Server，将远程工具注册为本地能力
+
+#### cap_mcp_server — MCP 服务端
+- **能力 ID**: `cap_mcp_server`
+- **工具**: 无（被动服务）
+- **实现**: 将本地能力暴露为标准 MCP 工具，接受外部 MCP Client 调用
+
+#### cap_time — 时间同步
+- **能力 ID**: `cap_time`
+- **工具**: `get_time`, `get_timezone`
+- **实现**: SNTP 协议同步网络时间，支持 POSIX TZ 时区字符串
+- **特殊**: 首次时间同步成功后触发 Scheduler 时间基准重置 (`app_time_sync_success`)
+
+#### cap_llm_inspect — LLM 视觉检查
+- **能力 ID**: `cap_llm_inspect`
+- **工具**: `llm_inspect` — 使用 LLM 分析图片内容
+- **实现**: 独立调用 LLM Vision API（不同于主 Agent 循环），返回分析文本
+
+#### cap_web_search — 网络搜索
+- **能力 ID**: `cap_web_search`
+- **工具**: `web_search` — 搜索互联网
+- **实现**: HTTP 客户端调用 Brave Search API 或 Tavily Search API
+- **初始化**: 配置搜索 API Key
+
+#### cap_router_mgr — 路由规则管理
+- **能力 ID**: `cap_router_mgr`
+- **工具**: `router_list`, `router_add`, `router_update`, `router_delete`
+- **实现**: CRUD 操作 `/fatfs/router_rules/router_rules.json` 文件
+
+#### cap_session_mgr — 会话管理
+- **能力 ID**: `cap_session_mgr`
 - **工具**: `session_list`, `session_get`, `session_delete`
 - **实现**: 管理 `/fatfs/sessions/` 下的会话文件，提供 `session_builder` 回调给 Event Router
 
-### cap_skill_mgr — 技能管理
-- **工具**: `activate_skill` (由 claw_skill 提供)
-- **实现**: 解析 SKILL.md frontmatter，动态启用能力组可见性
-
-### cap_system — 系统操作
-- **工具**: `system_info`, `system_restart`, `system_console`
-- **实现**: 获取内存/Flash 信息，触发设备重启
-
-### cap_time — 时间同步
-- **工具**: `get_time`, `get_timezone`
-- **实现**: SNTP 协议同步网络时间，支持 POSIX TZ 时区字符串
-
-### cap_voice — 语音能力
+#### cap_voice — 语音 TTS 合成 (新增)
+- **能力 ID**: `cap_voice`
 - **工具**: `tts_speak` — 文字转语音播放
 - **实现**:
-  1. WebSocket 连接到本地 TTS 服务器
+  1. WebSocket 连接到本地 TTS 服务器（IP/Port 可配置）
   2. 接收 Opus 编码的音频流
   3. 解码为 48kHz 立体声 PCM
   4. 通过 `esp_codec_dev` 输出到音频 DAC
-- **架构**: 使用 Opus 帧队列实现接收/解码解耦
+- **初始化**: 设置语音服务器地址 (`cap_voice_set_server`)
 
-### cap_web_search — 网络搜索
-- **工具**: `web_search` — 搜索互联网
-- **实现**: HTTP 客户端调用 Brave Search API 或 Tavily Search API
+#### cap_asr — 语音 ASR 识别 (新增)
+- **能力 ID**: `cap_asr`
+- **工具**: `asr_start`, `asr_stop`, `asr_get_result` — 语音识别
+- **实现**: 
+  1. 通过麦克风采集音频
+  2. WebSocket 发送到语音服务器进行识别
+  3. 接收识别文本结果，发布为事件
+- **初始化**: 共用 TTS 的语音服务器配置，初始化 ASR 按钮
+- **硬件触发**: 物理按钮按键启动/结束语音识别 (`app_asr_button_init`)
+
+#### cap_boards — 板卡管理
+- **能力 ID**: `cap_boards`
+- **工具**: `board_info` — 查询当前板卡型号、芯片、外设列表
+- **实现**: 调用 `esp_board_manager` API 获取板卡元数据
 
 ### 📖 技术概念讲解
 
@@ -1325,7 +1423,7 @@ MCP 是 Anthropic 提出的一种开放协议，用于标准化 AI 模型与外�
 **MCP Client**：调用工具的一方。例如 Claude Desktop 作为 Client 连接到天气 Server，就可以在对话中查询天气。
 
 ESP-Claw **同时是 Server 和 Client**：
-- 作为 **Server**：把它本地的 18 个能力（Lua 执行、GPIO 控制等）暴露给外部 MCP Client。Claude Desktop 连接 ESP-Claw 后，可以直接控制 ESP32 的硬件。
+- 作为 **Server**：把它本地的 22 个能力（Lua 执行、GPIO 控制等）暴露给外部 MCP Client。Claude Desktop 连接 ESP-Claw 后，可以直接控制 ESP32 的硬件。
 - 作为 **Client**：连接到外部的 MCP Server，将远程工具引入本地 Agent。ESP32 自身没有搜索能力，但通过 MCP 连接搜索 Server 后就能搜索了。
 
 **为什么用 WebSocket 而非普通 HTTP？** MCP 需要双向通信——Server 可以主动推送通知给 Client（如工具列表变化）。WebSocket 支持全双工通信，适合这种场景。
@@ -1362,6 +1460,20 @@ I2S 总线 → 音频 DAC（数模转换器）→ 扬声器
 </details>
 
 <details>
+<summary><b>什么是 ASR（Automatic Speech Recognition，自动语音识别）？</b></summary>
+
+ASR 是将人类语音转换为文字的技术。在 ESP-Claw 上，ASR 工作流程：
+
+1. **触发**：用户按下实体按钮（由 `app_asr_button_init` 检测 GPIO 电平变化）
+2. **采集**：通过板载麦克风（I2S 接口）采集音频 PCM 数据
+3. **传输**：通过 WebSocket 将音频流发送到语音服务器
+4. **识别**：服务器端进行语音识别，返回识别出的文本
+5. **发布事件**：将识别结果作为 `message` 事件发布到 Event Router，触发 Agent 推理
+
+ASR 和 TTS 共享同一语音服务器配置（IP + Port），在 [`voice_ws_common`](components/common/voice_ws_common/voice_ws_common.h) 中统一管理连接。
+</details>
+
+<details>
 <summary><b>什么是 Cron 表达式？</b></summary>
 
 Cron 是 Unix/Linux 系统中的定时任务调度系统。Cron 表达式用 5 个字段表示"什么时候执行"：
@@ -1387,19 +1499,6 @@ Cron 是 Unix/Linux 系统中的定时任务调度系统。Cron 表达式用 5 �
 </details>
 
 <details>
-<summary><b>什么是 TTS（文本转语音）？Opus 音频编码是什么？</b></summary>
-
-TTS（Text-to-Speech）将文字转为语音。在 ESP-Claw 上，语音流程是：
-
-1. 调用云端 TTS API（如 OpenAI TTS），传入文字
-2. 云端返回 Opus 编码的音频数据（压缩格式，体积小）
-3. ESP32 接收后解码为 PCM（原始音频采样数据）
-4. 通过 I2S 总线发送到 DAC 芯片，输出模拟信号到扬声器
-
-Opus 是开源音频编码格式，在低码率下音质优秀，ESP32 有足够算力进行实时解码。PCM（Pulse Code Modulation）是未压缩的原始音频——直接表示声波振幅，适合 DAC 播放但体积大。Opus→PCM 解码让网络传输省带宽，播放时再还原质量。
-</details>
-
-<details>
 <summary><b>什么是 WebSocket？跟 HTTP 有什么区别？</b></summary>
 
 HTTP 是**请求-响应模式**：客户端问一句，服务器答一句，一问一答结束后连接断开。
@@ -1414,7 +1513,7 @@ WebSocket: 客户端 ⇄ 建立连接 ⇄ 服务器 (保持连接，双向随时
 **在 ESP-Claw 中的使用场景**：
 - WebIM 聊天界面：需要服务器主动推送 Agent 的回复（如果用 HTTP，前端需要不断轮询"有新消息吗？"）
 - MCP 通信：工具调用需要双向异步通知
-- 语音流：服务器持续推送音频数据，不适合用 HTTP 的一问一答模式
+- 语音流：服务器持续推送音频数据（TTS）或持续接收音频数据（ASR），不适合用 HTTP 的一问一答模式
 </details>
 
 <details>
@@ -1475,7 +1574,7 @@ ESP-IDF 的 FATFS 组件提供了 POSIX 兼容的文件操作接口，使得 `ca
 - **指数退避重连**: 1 秒基准，30 秒上限，默认 5 次重试
 - **AP SSID 自动生成**: `<prefix>-<MAC后3字节>` (例: `esp-claw-84AEE5`)
 - **Captive DNS 门户**: 将任意 DNS 请求重定向到设备 IP，触发浏览器自动弹出配网页
-- **状态变更回调**: `on_wifi_state_changed` 通知 UI/表情更新网络状态图标
+- **状态变更回调**: `on_wifi_state_changed` 通知 UI/表情更新网络状态图标（在 `app_main` 中用 `wifi_manager_register_state_callback` 注册）
 
 ### 6.2 HTTP 服务器
 
@@ -1740,9 +1839,8 @@ LLM
 | `lua_module_button` | 按键检测 | GPIO 中断 |
 | `lua_module_knob` | 旋转编码器 | GPIO 中断 |
 | `lua_module_fuel_gauge` | 电池电量 | I2C (MAX17048 等) |
-| `lua_module_camera` | 摄像头 | CSI/MIPI |
 
-#### 系统模块层 (7 个)
+#### 系统模块层 (9 个)
 
 | 模块 | 功能 |
 |------|------|
@@ -1927,7 +2025,7 @@ boards/{vendor}/{board}/
 
 基于 `esp_emote_gfx` 的面部表情动画引擎：
 - 绘制眼睛、嘴巴等面部特征
-- 支持表情过渡和网络状态图标
+- 支持表情过渡和网络状态图标（通过 `app_claw_set_network_status` 更新）
 - 通过 `display_arbiter` 管理对 LCD 的访问权
 
 ### 8.5 显示仲裁器 (Display Arbiter)
@@ -1960,6 +2058,27 @@ boards/{vendor}/{board}/
 - 多种内置字体 (12pt ~ 48pt)
 - 矩形/圆形/线条绘制
 - RGB565 色彩格式
+
+### 8.7 音频系统
+
+音频子系统包括两个独立的能力组，共享同一个语音 WebSocket 连接管理：
+
+**voice_ws_common** (`components/common/voice_ws_common/`):
+- 统一管理 TTS 和 ASR 的 WebSocket 连接
+- 配置 `CONFIG_APP_CLAW_VOICE_SERVER_IP` 和 `CONFIG_APP_CLAW_VOICE_SERVER_PORT`
+- 支持 Opus 音频帧队列（接收/解码解耦）
+
+**TTS 流程** (cap_voice):
+```
+文本 → WebSocket → 语音服务器 → Opus流 → ESP32解码 → PCM → I2S → DAC → 扬声器
+```
+
+**ASR 流程** (cap_asr):
+```
+麦克风 → I2S → PCM → WebSocket → 语音服务器 → 识别文本 → Event Router
+```
+
+**硬件触发**: ASR 通过物理按钮触发，由 `app_asr_button_init()` 检测 GPIO 中断。
 
 ### 📖 技术概念讲解
 
@@ -2137,32 +2256,38 @@ i2c:
 
 ### 9.3 NVS 配置存储
 
-配置保存在 NVS namespace `app` 中，由 [app_config](application/edge_agent/components/app_config/) 组件管理：
+配置保存在 NVS namespace `app` 中，由 [app_config](application/edge_agent/components/app_config/) 组件管理。主要字段包括：
 
 ```c
 typedef struct {
-    // Wi-Fi
+    // Wi-Fi (3组)
     char wifi_ssid[32], wifi_password[64];
     char ap_ssid[32], ap_password[64];
     char ap_behavior[16];  // "always_on" | "close_on_sta"
 
-    // LLM
+    // 搜索 API Key (2组)
+    char search_brave_key[128], search_tavily_key[128];
+
+    // LLM 配置
     char llm_api_key[128], llm_backend_type[32], llm_model[64];
     char llm_base_url[256], llm_auth_type[32];
     char llm_timeout_ms[8], llm_max_tokens[8];
     char llm_supports_tools[8], llm_supports_vision[8];
+    char llm_default_image_max_bytes[8], llm_image_remote_url_only[8];
 
-    // IM
-    char im_qq_*, im_feishu_*, im_telegram_*, im_wechat_*;
+    // IM 凭据
+    char qq_app_id[64], qq_app_secret[128];
+    char feishu_app_id[64], feishu_app_secret[128];
+    char tg_bot_token[128];
+    char wechat_token[128], wechat_base_url[256];
+    char wechat_cdn_base_url[256], wechat_account_id[64];
 
-    // Search
-    char search_brave_key[128], search_tavily_key[128];
-
-    // Capabilities
-    char enabled_cap_groups[512], llm_visible_cap_groups[512];
+    // 能力组控制
+    char enabled_cap_groups[512];
+    char llm_visible_cap_groups[512];
     char enabled_lua_modules[512];
 
-    // Time
+    // 时区
     char time_timezone[64];  // POSIX TZ 字符串
 } app_config_t;
 ```
@@ -2321,7 +2446,7 @@ cmake 配置阶段:
     ├─ 编译所有 ESP-IDF 组件
     ├─ 编译 application/edge_agent/components/ (6 个应用组件)
     ├─ 编译 components/claw_modules/ (5 个核心模块)
-    ├─ 编译 components/claw_capabilities/ (18 个能力)
+    ├─ 编译 components/claw_capabilities/ (22 个能力)
     ├─ 编译 components/common/ (11 个公共组件)
     ├─ 编译 components/lua_modules/ (31 个 Lua 模块)
     ├─ 编译 managed_components/ (外部依赖)
@@ -2378,6 +2503,12 @@ fatfs_image/
 | `espressif/esp_hosted` | 2.12.3 | 主机 Wi-Fi 栈 |
 | `espressif/esp_websocket_client` | 1.7.0 | WebSocket 客户端 |
 | `espressif/esp_codec_dev` | 1.5.9 | 音频 Codec 设备驱动 |
+| `espressif/led_strip` | 1.0.0 | 可寻址 LED 驱动 |
+| `espressif/esp_lcd_touch_gt911` | 1.2.0 | 触摸屏驱动 |
+| `espressif/esp_new_jpeg` | 1.0.0 | JPEG 图像编解码 |
+| `espressif/freetype` | 1.0.0 | 字体渲染 |
+| `espressif/libpng` | 1.6.37 | PNG 图像解码 |
+| `espressif/zlib` | 1.3.0 | 数据压缩 |
 
 ### 10.5 CI/CD
 
@@ -2530,7 +2661,7 @@ CI/CD（持续集成/持续部署）是一种自动化开发实践。
 ### 入口与配置
 - [main.c](application/edge_agent/main/main.c) — `app_main()` 启动入口
 - [app_claw.c](components/common/app_claw/app_claw.c) — Agent 装配与系统提示词
-- [app_capabilities.c](components/common/app_claw/app_capabilities.c) — 能力注册
+- [app_capabilities.c](components/common/app_claw/app_capabilities.c) — 能力注册与可见性控制
 - [app_config.h](application/edge_agent/components/app_config/include/app_config.h) — 配置结构定义
 
 ### 核心引擎
@@ -2556,6 +2687,7 @@ CI/CD（持续集成/持续部署）是一种自动化开发实践。
 - [display_arbiter.c](components/common/display_arbiter/display_arbiter.c) — 显示仲裁
 - [emotion_video.c](application/edge_agent/components/emotion_video/emotion_video.c) — 情绪视频
 - [video_player.c](application/edge_agent/components/video_player/video_player.c) — 视频播放
+- [voice_ws_common.h](components/common/voice_ws_common/voice_ws_common.h) — 语音 WebSocket 公共层
 
 ### 构建
 - [CMakeLists.txt](application/edge_agent/CMakeLists.txt) — 项目构建文件
