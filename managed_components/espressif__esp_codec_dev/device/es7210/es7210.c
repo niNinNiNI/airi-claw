@@ -348,7 +348,6 @@ static int _es7210_set_channel_gain(audio_codec_es7210_t *codec, uint16_t channe
 {
     int ret = 0;
     es7210_gain_value_t gain = get_db(db);
-    codec->gain = gain; /* persist so es7210_mic_select doesn't overwrite */
     if ((codec->mic_select & ES7210_INPUT_MIC1) & (channel_mask & ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0))) {
         ret |= es7210_update_reg_bit(codec, ES7210_MIC1_GAIN_REG43, 0x0f, gain);
     }

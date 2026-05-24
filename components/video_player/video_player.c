@@ -396,7 +396,10 @@ static void touch_task(void *arg)
 
         if (hit && !was_pressed && s_button_cb) {
             ESP_LOGI(TAG, "Button pressed, triggering callback");
-            s_button_cb(s_button_cb_data);
+            s_button_cb(s_button_cb_data, true);
+        } else if (!hit && was_pressed && s_button_cb) {
+            ESP_LOGI(TAG, "Button released, triggering callback");
+            s_button_cb(s_button_cb_data, false);
         }
 
         was_pressed = hit;

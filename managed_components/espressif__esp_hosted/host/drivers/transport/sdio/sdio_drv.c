@@ -893,7 +893,10 @@ static uint8_t * sdio_rx_get_buffer(uint32_t len)
 			g_h.funcs->_h_free_align(*buf);
 		}
 		*buf = (uint8_t *)g_h.funcs->_h_malloc_align(len, HOSTED_MEM_ALIGNMENT_64);
-		assert(*buf);
+		if (!*buf) {
+			ESP_LOGE(TAG, "sdio_rx_get_buffer: alloc %ld bytes failed (DMA exhausted)", len);
+			return NULL;
+		}
 		double_buf.buffer[index].buf_size = len;
 		ESP_LOGD(TAG, "buf %d size: %ld", index, double_buf.buffer[index].buf_size);
 	}
@@ -925,7 +928,10 @@ static esp_err_t sdio_push_data_to_queue(uint8_t * buf, uint32_t buf_len)
 		}
 		/* Allocate rx buffer */
 		pkt_rxbuff = sdio_buffer_alloc(MEMSET_REQUIRED);
-		assert(pkt_rxbuff);
+		if (!pkt_rxbuff) {
+			ESP_LOGE(TAG, "sdio_push_data_to_queue: buffer alloc failed");
+			return ESP_ERR_NO_MEM;
+		}
 
 		packet_size = len + offset;
 		if (packet_size > buf_len) {
@@ -1050,7 +1056,10 @@ static void sdio_read_task(void const* pvParameters)
 #if DO_COMBINED_REG_READ
     if (!reg_buf) {
 	    reg_buf = g_h.funcs->_h_malloc_align(REG_BUF_LEN, HOSTED_MEM_ALIGNMENT_64);
-	    assert(reg_buf);
+	    if (!reg_buf) {
+	        ESP_LOGE(TAG, "reg_buf alloc failed (DMA exhausted)");
+	        return;
+	    }
     }
 #endif
 
@@ -1159,7 +1168,11 @@ static void sdio_read_task(void const* pvParameters)
 
 		/* Allocate rx buffer */
 		rxbuff = sdio_rx_get_buffer(len_from_slave);
-		assert(rxbuff);
+		if (!rxbuff) {
+			ESP_LOGE(TAG, "sdio_read_task: rx buffer alloc failed, dropping packet");
+			SDIO_DRV_UNLOCK();
+			continue;
+		}
 
 		data_left = len_from_slave;
 		pos = rxbuff;

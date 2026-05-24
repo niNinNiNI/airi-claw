@@ -113,6 +113,28 @@
     ]
   },
   {
+    "id": "agent_out_message_voice_tts",
+    "description": "Deliver agent output to voice channel via TTS playback.",
+    "enabled": true,
+    "consume_on_match": true,
+    "ack": "voice tts sent",
+    "match": {
+      "source_cap": "claw_core",
+      "event_type": "out_message",
+      "content_type": "text",
+      "source_channel": "voice"
+    },
+    "actions": [
+      {
+        "type": "call_cap",
+        "cap": "voice_send_message",
+        "input": {
+          "text": "{{event.text}}"
+        }
+      }
+    ]
+  },
+  {
     "id": "agent_out_message_send_message",
     "description": "Deliver agent output messages to the original IM chat.",
     "enabled": true,

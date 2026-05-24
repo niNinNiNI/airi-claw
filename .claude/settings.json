@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/06_I2SCodec 按键触发/**)",
-      "Read(//home/nini/voice-server/docs/**)"
+      "Read(//home/nini/voice-server/docs/**)",
+      "Read(//home/nini/voicerserver/src/main/java/com/volc/voice/ogg/**)"
     ],
     "additionalDirectories": [
       "/home/nini/esp-claw-master_1/esp-claw-master/components/common/voice_ws_common",

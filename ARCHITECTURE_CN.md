@@ -105,7 +105,7 @@ ESP-IDF（Espressif IoT Development Framework）是乐鑫官方提供的开发�
 - CMake 构建系统
 
 可以理解为"ESP32 的 SDK（软件开发工具包）"。
-</details>
+</details>〔方案選單〕
 
 ---
 
