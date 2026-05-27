@@ -63,6 +63,10 @@ dependencies:
       path: ../../claw_capabilities/cap_emotion
       rules:
       - if: $CONFIG{APP_CLAW_CAP_EMOTION} == True
+    - name: cap_servo
+      path: ../../claw_capabilities/cap_servo
+      rules:
+      - if: $CONFIG{APP_CLAW_CAP_SERVO} == True
     - name: cap_system
       path: ../../claw_capabilities/cap_system
       rules:
@@ -338,6 +342,12 @@ dependencies:
     dependencies: []
     source:
       path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_scheduler
+      type: local
+    version: '*'
+  cap_servo:
+    dependencies: []
+    source:
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo
       type: local
     version: '*'
   cap_session_mgr:

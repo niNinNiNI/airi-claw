@@ -9,7 +9,11 @@
       "/home/nini/esp-claw-master_1/esp-claw-master/components/common/voice_ws_common",
       "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_voice",
       "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_asr/src",
-      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_asr/skills/cap_asr"
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_asr/skills/cap_asr",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo/include",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo/src",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo/skills/cap_servo",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo"
     ]
   }
 }
