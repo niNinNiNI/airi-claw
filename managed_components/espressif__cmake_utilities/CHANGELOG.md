@@ -1,3 +1,16 @@
+## v0.5.3 - 2023-09-15
+
+* fix `add_dependencies called with incorrect number of arguments` in `relinker.cmake`
+* `include(cmake_utilities)` is not suggested now, to avoid cmake_utilities dependency issue
+
+## v0.5.2 - 2023-09-15
+
+* Support work on older ESP-IDF, eg: 4.3.x
+
+## v0.5.1 - 2023-08-22
+
+* Add string 1-byte align support
+
 ## v0.5.0 - 2023-08-02
 
 * Add GCC LTO support

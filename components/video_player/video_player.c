@@ -836,7 +836,7 @@ esp_err_t video_player_start(void)
     /* Scan for video files */
     esp_err_t ret = scan_media_files(SD_MOUNT_POINT);
     if (ret != ESP_OK || s_playlist_count == 0) {
-        ESP_LOGI(TAG, "No video files, falling back to emote UI");
+        ESP_LOGI(TAG, "No video files, skipping video playback");
         return ESP_OK;  /* graceful fallback */
     }
 

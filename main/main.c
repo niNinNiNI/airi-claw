@@ -25,7 +25,6 @@
 #include "cap_im_wechat.h"
 #endif
 #include "app_config.h"
-#include "emotion_video.h"
 #include "video_player.h"
 
 #define APP_FATFS_PARTITION_LABEL "storage"
@@ -85,11 +84,6 @@ static void on_wifi_state_changed(bool connected, void *user_ctx)
              status.ap_active,
              status.mode ? status.mode : "off",
              ap_ssid ? ap_ssid : "(none)");
-
-    esp_err_t err = app_claw_set_network_status(connected, ap_ssid);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to update network emote: %s", esp_err_to_name(err));
-    }
 }
 
 static esp_err_t app_claw_init_storage_paths(app_claw_storage_paths_t *paths)
@@ -335,7 +329,6 @@ void app_main(void)
     app_config_to_claw(s_config, s_claw_config);
     init_timezone(app_config_get_timezone(s_config)); // no need to check error
     ESP_ERROR_CHECK(esp_board_manager_init());
-    ESP_ERROR_CHECK(app_claw_ui_start());
     video_player_init();
     ESP_ERROR_CHECK(init_fatfs());
     ESP_ERROR_CHECK(wifi_manager_init());
@@ -402,9 +395,6 @@ void app_main(void)
 #if CONFIG_APP_CLAW_CAP_IM_LOCAL
     ESP_ERROR_CHECK(http_server_webim_bind_im());
 #endif
-
-    /* Start default emotion cycle after all subsystems are ready */
-    emotion_video_start_default_cycle();
 
     register_wifi_command();
 

@@ -1,6 +1,0 @@
-config EMOTION_VIDEO_ENABLE
-    bool "Enable Emotion Video Controller"
-    default y
-    help
-        Enable the emotion video playback controller for switching
-        between emotion video files on SD card.

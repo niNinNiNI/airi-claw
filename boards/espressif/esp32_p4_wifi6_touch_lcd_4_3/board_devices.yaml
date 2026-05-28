@@ -90,8 +90,8 @@ devices:
       bits_per_pixel: 16
       reset_active_high: 0
       need_reset: true
-      mirror_x: false
-      mirror_y: false
+      mirror_x: true
+      mirror_y: true
       swap_xy: false
       invert_color: false
       dbi_config:

@@ -12,12 +12,6 @@ dependencies:
     rules:
     - if: target in [esp32p4]
 
-  espressif2022/esp_emote_expression:
-    version: ^1.0.0
-
-  espressif2022/esp_emote_gfx:
-    version: 3.0.2
-
   espressif/esp_websocket_client: "^1.4.0"
 
   app_claw:
@@ -28,11 +22,6 @@ dependencies:
 
   captive_dns:
     path: ../../../components/common/captive_dns
-
-  emote:
-    path: ../../../components/common/emote
-    rules:
-    - if: $CONFIG{ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT} == True
 
   http_reuse:
     path: ../../../components/common/http_reuse

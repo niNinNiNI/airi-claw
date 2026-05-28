@@ -3,7 +3,12 @@
     "allow": [
       "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/06_I2SCodec 按键触发/**)",
       "Read(//home/nini/voice-server/docs/**)",
-      "Read(//home/nini/voicerserver/src/main/java/com/volc/voice/ogg/**)"
+      "Read(//home/nini/voicerserver/src/main/java/com/volc/voice/ogg/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/10_mp4_player/main/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/10_mp4_player/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/10_mp4_player/managed_components/espressif__esp_lcd_st7701/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/10_mp4_player/managed_components/espressif__esp_lvgl_adapter/**)",
+      "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/esp_driver_ppa/include/driver/**)"
     ],
     "additionalDirectories": [
       "/home/nini/esp-claw-master_1/esp-claw-master/components/common/voice_ws_common",
@@ -13,7 +18,10 @@
       "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo/include",
       "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo/src",
       "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo/skills/cap_servo",
-      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo"
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/common/emote",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_lua/src",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display/src"
     ]
   }
 }
