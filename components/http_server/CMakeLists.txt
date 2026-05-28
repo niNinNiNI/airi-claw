@@ -23,6 +23,7 @@ idf_component_register(
         "http_server_files_api.c"
         "http_server_wechat_api.c"
         "http_server_webim_api.c"
+        "http_server_emotion_api.c"
         "http_server_json.c"
         "http_server_utils.c"
     INCLUDE_DIRS
@@ -38,6 +39,7 @@ idf_component_register(
         esp_http_server
         heap
         json
+        video_player
 )
 
 # Rebuild the component whenever the bundled UI asset changes on disk.

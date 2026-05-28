@@ -26,6 +26,7 @@
 #endif
 #include "app_config.h"
 #include "video_player.h"
+#include "emotion_video_controller.h"
 
 #define APP_FATFS_PARTITION_LABEL "storage"
 #define APP_ENABLE_MEM_LOG        (0)
@@ -395,6 +396,10 @@ void app_main(void)
 #if CONFIG_APP_CLAW_CAP_IM_LOCAL
     ESP_ERROR_CHECK(http_server_webim_bind_im());
 #endif
+
+    /* Initialize emotion video controller and start default emotion playback */
+    emotion_video_controller_init("/sdcard/videos");
+    emotion_video_start_default();
 
     register_wifi_command();
 

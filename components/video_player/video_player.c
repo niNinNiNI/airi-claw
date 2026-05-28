@@ -41,7 +41,8 @@ static const char *TAG = "video_player";
 #define MAX_CONSECUTIVE_FAILURES  3
 #define MAX_FILENAME_LEN          512
 
-#define SD_MOUNT_POINT  "/sdcard"
+#define SD_MOUNT_POINT       "/sdcard"
+#define VIDEO_DEFAULT_DIR    "/sdcard/videos"
 
 /* ---- on-screen touch button ---- */
 #define VIDEO_BTN_WIDTH        80
@@ -826,31 +827,38 @@ esp_err_t video_player_init(void)
 
 esp_err_t video_player_start(void)
 {
-    /* SD card is already mounted by the board manager — just verify it's accessible */
+    /* Verify SD card is accessible, then scan the default videos directory */
     struct stat st;
     if (stat(SD_MOUNT_POINT, &st) != 0 || !S_ISDIR(st.st_mode)) {
         ESP_LOGW(TAG, "SD card not accessible at %s, skipping video playback", SD_MOUNT_POINT);
         return ESP_OK;  /* graceful fallback */
     }
 
-    /* Scan for video files */
-    esp_err_t ret = scan_media_files(SD_MOUNT_POINT);
+    /* Scan for video files in the default videos directory */
+    esp_err_t ret = scan_media_files(VIDEO_DEFAULT_DIR);
     if (ret != ESP_OK || s_playlist_count == 0) {
         ESP_LOGI(TAG, "No video files, skipping video playback");
         return ESP_OK;  /* graceful fallback */
     }
 
-    /* Send first file to video_task (playlist mode) */
-    s_single_file_mode = false;
-    s_loop_current = false;
-    s_current_index = 0;
+    /* Start playlist looping through all found files */
+    const char **paths = (const char **)calloc(s_playlist_count, sizeof(const char *));
+    if (!paths) {
+        playlist_cleanup();
+        return ESP_ERR_NO_MEM;
+    }
+    for (int i = 0; i < s_playlist_count; i++) {
+        paths[i] = s_playlist[i];
+    }
 
-    video_cmd_msg_t msg = {
-        .cmd = VIDEO_CMD_SWITCH_FILE,
-        .loop = false,
-    };
-    strlcpy(msg.path, s_playlist[0], sizeof(msg.path));
-    xQueueSend(s_video_cmd_queue, &msg, pdMS_TO_TICKS(1000));
+    ret = video_player_play_playlist(paths, s_playlist_count, true);
+    free(paths);
+    playlist_cleanup();
+
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start playlist: %s", esp_err_to_name(ret));
+        return ret;
+    }
 
     ESP_LOGI(TAG, "Video player started with %d file(s)", s_playlist_count);
     return ESP_OK;
@@ -910,10 +918,19 @@ esp_err_t video_player_play_file(const char *path, bool loop)
     }
 
     /* Switch to single-file mode, clear any active playlist */
+    if (s_playlist_paths) {
+        for (int i = 0; i < s_playlist_len; i++) {
+            free(s_playlist_paths[i]);
+        }
+        free(s_playlist_paths);
+        s_playlist_paths = NULL;
+        s_playlist_len = 0;
+        s_playlist_idx = 0;
+    }
+    s_playlist_mode = false;
     strlcpy(s_current_file_path, path, sizeof(s_current_file_path));
     s_single_file_mode = true;
     s_loop_current = loop;
-    s_playlist_mode = false;
 
     video_cmd_msg_t msg = {
         .cmd = VIDEO_CMD_SWITCH_FILE,
@@ -982,12 +999,14 @@ esp_err_t video_player_play_playlist(const char **paths, int count, bool loop)
     s_playlist_len = count;
     s_playlist_idx = 0;
     s_playlist_loop = loop;
+
+    /* Clear single-file mode before enabling playlist mode */
+    s_single_file_mode = false;
+    s_loop_current = false;
     s_playlist_mode = true;
 
     /* Update tracking state */
     strlcpy(s_current_file_path, paths[0], sizeof(s_current_file_path));
-    s_single_file_mode = false;
-    s_loop_current = false;
 
     /* Send first file to video_task */
     video_cmd_msg_t msg = {
