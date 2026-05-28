@@ -10,3 +10,7 @@ build/
 fatfs_image/memory/identity.md
 fatfs_image/memory/soul.md
 fatfs_image/memory/MEMORY.md
+fatfs_image/memory/user.md
+fatfs_image/memory/memory_index.json
+fatfs_image/memory/memory_records.jsonl
+fatfs_image/memory/memory_digest.log
