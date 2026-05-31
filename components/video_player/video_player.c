@@ -431,8 +431,16 @@ static esp_err_t display_decoded_frame(uint8_t *buffer, uint32_t buffer_size,
                                   s_btn_buffer);
     }
 
+    /* Drain any stale vsync count, then wait for the next one.
+     * Use a 100 ms timeout so we don't block forever if the vsync
+     * callback was wiped (e.g. Lua display took over mid-frame). */
     xSemaphoreTake(s_vsync_sem, 0);
-    xSemaphoreTake(s_vsync_sem, portMAX_DELAY);
+    if (xSemaphoreTake(s_vsync_sem, pdMS_TO_TICKS(100)) != pdTRUE) {
+        if (!display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
+            return ESP_OK;
+        }
+        xSemaphoreTake(s_vsync_sem, portMAX_DELAY);
+    }
 
     return ESP_OK;
 }
@@ -497,6 +505,7 @@ static void video_task(void *arg)
     bool loop_enabled = false;
     char active_path[MAX_FILENAME_LEN] = {0};
     int consecutive_failures = 0;
+    int consecutive_stalls = 0;
 
     /* Wait for first command */
     while (s_running) {
@@ -526,6 +535,12 @@ static void video_task(void *arg)
             break;
         }
         active = true;
+
+        /* Re-register VSync callback — display_hal_destroy() may have cleared it */
+        esp_lcd_dpi_panel_event_callbacks_t vsync_cb = {
+            .on_refresh_done = vsync_ready_callback,
+        };
+        esp_lcd_dpi_panel_register_event_callbacks(s_panel, &vsync_cb, NULL);
 
         ESP_LOGD(TAG, "Playing: %s (loop=%d)", strrchr(active_path, '/') + 1, loop_enabled);
 
@@ -557,6 +572,7 @@ static void video_task(void *arg)
         uint32_t stable_count = 0;
         uint32_t last_frames = 0;
         bool switched = false;
+        bool playback_stalled = false;
 
         while (s_running && display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
             /* Check for incoming commands */
@@ -594,6 +610,7 @@ static void video_task(void *arg)
                 if (stats.frames_processed == last_frames) {
                     stable_count++;
                     if (stable_count >= 5) {
+                        playback_stalled = true;
                         break;
                     }
                 } else {
@@ -611,40 +628,74 @@ static void video_task(void *arg)
 
         /* Check if display was taken by another owner (e.g. Lua) */
         if (!display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
+            /* Stop playback so the extract task releases the JPEG decoder,
+             * SD card and PSRAM buffers while Lua uses the display. */
+            ESP_LOGI(TAG, "Display taken by another owner, stopping playback");
             stop_current_playback();
-            consecutive_failures = 0;
-            active = false;
-
-            ESP_LOGI(TAG, "Display taken by another owner, waiting to re-acquire");
 
             while (s_running && !display_arbiter_is_owner(DISPLAY_ARBITER_OWNER_VIDEO)) {
                 video_cmd_msg_t wait_msg;
                 if (xQueueReceive(s_video_cmd_queue, &wait_msg, 0) == pdTRUE) {
                     if (wait_msg.cmd == VIDEO_CMD_STOP) {
+                        display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
+                        active = false;
                         s_playlist_mode = false;
                         break;
                     } else if (wait_msg.cmd == VIDEO_CMD_SWITCH_FILE) {
                         strlcpy(active_path, wait_msg.path, sizeof(active_path));
                         loop_enabled = wait_msg.loop;
                         consecutive_failures = 0;
+                        switched = true;
+                        break;
                     }
                 }
                 esp_err_t acq_ret = display_arbiter_acquire(DISPLAY_ARBITER_OWNER_VIDEO);
                 if (acq_ret == ESP_OK) {
-                    active = true;
                     break;
                 }
-                vTaskDelay(pdMS_TO_TICKS(500));
+                vTaskDelay(pdMS_TO_TICKS(200));
             }
 
             if (!s_running) {
                 break;
             }
-            if (active) {
-                ESP_LOGI(TAG, "Display re-acquired, restarting playback");
+            if (switched) {
                 continue;
             }
-            /* STOP received while waiting — wait for next command */
+            if (!active) {
+                /* STOP received while waiting — wait for next command */
+                while (s_running) {
+                    if (xQueueReceive(s_video_cmd_queue, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
+                        if (msg.cmd == VIDEO_CMD_STOP) {
+                            continue;
+                        }
+                        strlcpy(active_path, msg.path, sizeof(active_path));
+                        loop_enabled = msg.loop;
+                        break;
+                    }
+                }
+                continue;
+            }
+            ESP_LOGI(TAG, "Display re-acquired, restarting playback");
+            continue;
+        }
+
+        /* Playback ended (EOS or stall) */
+        stop_current_playback();
+
+        if (playback_stalled) {
+            consecutive_stalls++;
+        } else {
+            consecutive_stalls = 0;
+        }
+
+        if (consecutive_stalls >= MAX_CONSECUTIVE_FAILURES) {
+            ESP_LOGE(TAG, "Too many consecutive stalls, giving up");
+            display_arbiter_release(DISPLAY_ARBITER_OWNER_VIDEO);
+            active = false;
+            consecutive_stalls = 0;
+            consecutive_failures = 0;
+            /* Wait for next command */
             while (s_running) {
                 if (xQueueReceive(s_video_cmd_queue, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
                     if (msg.cmd == VIDEO_CMD_STOP) {
@@ -658,8 +709,6 @@ static void video_task(void *arg)
             continue;
         }
 
-        /* Playback ended (EOS or stall) */
-        stop_current_playback();
         consecutive_failures = 0;
 
         if (s_playlist_mode) {
