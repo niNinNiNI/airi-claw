@@ -1,0 +1,33 @@
+# .understandignore — patterns for files/dirs to exclude from analysis
+# Syntax: same as .gitignore (globs, # comments, ! negation, trailing / for dirs)
+# Lines below are suggestions — uncomment to activate.
+# Use ! prefix to force-include something excluded by defaults.
+#
+# Built-in defaults (always excluded unless negated):
+#   node_modules/, .git/, dist/, build/, obj/, *.lock, *.min.js, etc.
+#
+# --- From .gitignore (uncomment to exclude) ---
+
+fatfs_image/skills
+fatfs_image/scripts/builtin
+fatfs_image/scripts/docs
+配置信息.md
+语音模块相关信息/火山应用信息.md
+fatfs_image/memory/identity.md
+fatfs_image/memory/soul.md
+fatfs_image/memory/MEMORY.md
+fatfs_image/memory/user.md
+fatfs_image/memory/memory_index.json
+fatfs_image/memory/memory_records.jsonl
+fatfs_image/memory/memory_digest.log
+
+# --- Detected directories (uncomment to exclude) ---
+
+managed_components/
+# docs/
+
+# --- Test file patterns (uncomment to exclude) ---
+
+# *.test.*
+# *.spec.*
+# *.snap
