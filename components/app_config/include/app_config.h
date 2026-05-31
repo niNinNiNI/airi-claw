@@ -15,8 +15,9 @@ extern "C" {
 #define APP_CONFIG_STR_LEN        320
 #define APP_CONFIG_TIMEZONE_LEN   32
 
-#define APP_WIFI_SSID             CONFIG_APP_WIFI_SSID
-#define APP_WIFI_PASSWORD         CONFIG_APP_WIFI_PASSWORD
+#define APP_WIFI_SSID              CONFIG_APP_WIFI_SSID
+#define APP_WIFI_PASSWORD          CONFIG_APP_WIFI_PASSWORD
+#define APP_SEARCH_TAVILY_KEY      CONFIG_APP_SEARCH_TAVILY_KEY
 
 typedef struct {
     char wifi_ssid[APP_CONFIG_STR_LEN];

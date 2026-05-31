@@ -55,7 +55,7 @@ typedef struct {
 #define APP_DEFAULT_WECHAT_CDN_BASE_URL      "https://novac2c.cdn.weixin.qq.com/c2c"
 #define APP_DEFAULT_WECHAT_ACCOUNT_ID        "default"
 #define APP_DEFAULT_SEARCH_BRAVE_KEY         ""
-#define APP_DEFAULT_SEARCH_TAVILY_KEY        ""
+#define APP_DEFAULT_SEARCH_TAVILY_KEY        APP_SEARCH_TAVILY_KEY
 #define APP_DEFAULT_ENABLED_CAP_GROUPS       ""
 #define APP_DEFAULT_LLM_VISIBLE_CAP_GROUPS   ""
 #define APP_DEFAULT_ENABLED_LUA_MODULES      ""

@@ -44,6 +44,12 @@ menu "Default Wi-Fi Settings"
             falls back to pure AP mode and waits for the user to provision
             new credentials.
 
+    config APP_SEARCH_TAVILY_KEY
+        string "Default Tavily Search API key"
+        default ""
+        help
+            Default Tavily search API key used to populate app settings.
+
 endmenu
 
 endmenu
