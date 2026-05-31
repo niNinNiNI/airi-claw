@@ -34,7 +34,8 @@
       "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_lua/src",
       "/home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display/src",
       "/home/nini/esp-claw-master_1/esp-claw-master/components/common/ppa_mirror",
-      "/home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display"
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display",
+      "/tmp"
     ]
   }
 }
