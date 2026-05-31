@@ -74,6 +74,74 @@ def test_adc_continuous_single_unit_accepts_matching_explicit_conv_mode(bmgr_roo
     assert result['struct_init']['cfg']['continuous']['conv_mode'] == 'ADC_CONV_SINGLE_UNIT_1'
 
 
+def test_fs_fat_sdmmc_accepts_zero_slot_flags(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_fs_fat import dev_fs_fat as mod
+
+    result = mod.parse(
+        'fs_sdcard',
+        {
+            'type': 'fs_fat',
+            'sub_type': 'sdmmc',
+            'config': {
+                'sub_config': {
+                    'slot_flags': 0,
+                },
+            },
+        },
+    )
+
+    assert result['struct_init']['sub_cfg']['sdmmc']['slot_flags'] == 0
+
+
+def test_peripheral_yaml_rejects_duplicate_names(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from generators.peripheral_parser import PeripheralParser
+    from generators.utils.yaml_utils import BoardConfigYamlError
+
+    periph_yaml = tmp_path / 'board_peripherals.yaml'
+    periph_yaml.write_text(
+        '''
+peripherals:
+  - name: gpio_power
+    type: gpio
+    config: {}
+  - name: gpio_power
+    type: gpio
+    config: {}
+''',
+        encoding='utf-8',
+    )
+
+    parser = PeripheralParser(bmgr_root)
+    with pytest.raises(BoardConfigYamlError, match="duplicate peripheral name 'gpio_power'"):
+        parser.parse_peripherals_yaml(str(periph_yaml))
+
+
+def test_device_yaml_rejects_duplicate_names(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from generators.device_parser import DeviceParser
+    from generators.utils.yaml_utils import BoardConfigYamlError
+
+    device_yaml = tmp_path / 'board_devices.yaml'
+    device_yaml.write_text(
+        '''
+devices:
+  - name: display_lcd
+    type: display_lcd
+    config: {}
+  - name: display_lcd
+    type: display_lcd
+    config: {}
+''',
+        encoding='utf-8',
+    )
+
+    parser = DeviceParser(bmgr_root)
+    with pytest.raises(BoardConfigYamlError, match="duplicate device name 'display_lcd'"):
+        parser.parse_devices_yaml_legacy(str(device_yaml), peripherals_dict={})
+
+
 def test_adc_continuous_single_unit_accepts_legacy_channel_id(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from peripherals.periph_adc import periph_adc as mod
@@ -974,3 +1042,17 @@ def test_audio_codec_without_pa_uses_disabled_pin_sentinel(bmgr_root):
     pa_cfg = result['struct_init']['pa_cfg']
     assert pa_cfg['name'] is None
     assert pa_cfg['port'] == -1
+
+
+def test_new_board_device_options_hide_internal_dedupe_keys(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from create_new_board import BoardCreator
+
+    creator = BoardCreator(bmgr_root)
+    devices = creator.get_available_devices()
+
+    assert 'audio_codec::audio_adc_mic' not in devices
+    assert 'lcd_touch_i2c__2' not in devices
+    assert 'audio_adc_mic_single_unit' in devices
+    assert 'lcd_touch_i2c' in devices
+    assert not any('::' in device or '__' in device for device in devices)

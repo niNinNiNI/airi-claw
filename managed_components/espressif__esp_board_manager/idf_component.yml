@@ -40,9 +40,9 @@ documentation: https://github.com/espressif/esp-board-manager/blob/main/esp_boar
 issues: https://github.com/espressif/esp-board-manager/issues
 repository: git://github.com/espressif/esp-board-manager.git
 repository_info:
-  commit_sha: c8aa97be6469e067643c141bc026f61e8da375c8
+  commit_sha: 7f00af205c9192dd9ae78f94cc0c63e7e9c614a7
   path: ./esp_board_manager
 tags:
 - board_manager
 url: https://github.com/espressif/esp-board-manager
-version: 0.5.11
+version: 0.5.13

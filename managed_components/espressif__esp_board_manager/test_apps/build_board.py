@@ -19,9 +19,7 @@ Options:
     --stop-on-error       Stop building if one board fails (default: continue)
     -p, --customer-path   Include boards from a custom directory
     --save-logs           Save full logs for all builds
-     -a, --all-boards     Scan ALL boards
-                          - Default: Only scans Main Boards
-                          - With flag: Scans Main + Component + Custom Boards
+     -a, --all-boards     Scan ALL board components and customer boards
 """
 
 import sys
@@ -90,7 +88,7 @@ def scan_all_boards(project_dir: Path, customer_path: Optional[str] = None, main
     Args:
         project_dir: Path to project directory (where idf.py runs)
         customer_path: Optional path to customer boards directory
-        main_boards_only: If True, only return main boards
+        main_boards_only: Deprecated. Kept for CLI compatibility and no longer filters boards.
 
     Returns:
         List of board names
@@ -110,37 +108,13 @@ def scan_all_boards(project_dir: Path, customer_path: Optional[str] = None, main
         return []
 
     boards = []
-    current_section = ''
-
-    # Parse output
-    # Example output:
-    # Main Boards:
-    #   [1] board_name_1
-    # Component Boards:
-    #   [2] board_name_2
-
     for line in output.split('\n'):
         line = line.strip()
-        if 'Main Boards:' in line:
-            current_section = 'main'
-            continue
-        elif 'Component Boards:' in line:
-            current_section = 'component'
-            continue
-        elif 'Custom Boards:' in line:
-            current_section = 'custom'
-            continue
 
         # Match pattern: [number] board_name
         match = re.search(r'\[\d+\]\s+([a-zA-Z0-9_]+)', line)
         if match:
-            board_name = match.group(1)
-
-            if main_boards_only:
-                if current_section == 'main':
-                    boards.append(board_name)
-            else:
-                boards.append(board_name)
+            boards.append(match.group(1))
 
     return boards
 
@@ -466,9 +440,7 @@ def main():
     parser.add_argument(
         '-a', '--all-boards',
         action='store_true',
-        help='Scan ALL board directories: main boards + component boards + customer boards. '
-             'Default only scans Main Boards. '
-             'Use this for complete CI/CD testing before release.'
+        help='Scan all board components and customer boards. Kept for compatibility; this is now the default.'
     )
 
     args = parser.parse_args()

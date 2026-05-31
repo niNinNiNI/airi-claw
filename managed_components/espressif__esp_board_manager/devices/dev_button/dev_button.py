@@ -40,8 +40,8 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
 
     # Get button type
     button_type = config.get('sub_type')
-    if button_type not in ['gpio', 'adc_single', 'adc_multi']:
-        raise ValueError(f"YAML validation error in  button device: Invalid button type '{button_type}'. Valid types: ['gpio', 'adc_single', 'adc_multi']")
+    if button_type not in ['gpio', 'adc_single', 'adc_multi', 'custom']:
+        raise ValueError(f"YAML validation error in  button device: Invalid button type '{button_type}'. Valid types: ['gpio', 'adc_single', 'adc_multi', 'custom']")
 
     # Parse timing configuration
     long_press_time = int(device_config.get('long_press_time', 2000))
@@ -266,6 +266,12 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
                 }
             }
         button_config['sub_cfg']['adc'] = adc_cfg
+
+    # Parse Custom button configuration
+    elif button_type == 'custom':
+        # Custom button does not require specific sub_cfg parameters
+        # The device name itself is used to look up the driver
+        pass
 
     # Create the result structure matching ESP Board Manager format
     result = {

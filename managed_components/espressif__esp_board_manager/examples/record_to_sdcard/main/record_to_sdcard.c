@@ -14,9 +14,9 @@
 
 static const char *TAG = "BMGR_RECORD_TO_SDCARD";
 
-#define DEFAULT_REC_URL           "/sdcard/test.wav"
+#define DEFAULT_REC_URL           "/sdcard/test_rec.wav"
 #define DEFAULT_SAMPLE_RATE       16000
-#define DEFAULT_CHANNELS          2
+#define DEFAULT_CHANNELS          1
 #define DEFAULT_BITS_PER_SAMPLE   16
 #define DEFAULT_DURATION_SECONDS  5
 #define DEFAULT_REC_GAIN          30

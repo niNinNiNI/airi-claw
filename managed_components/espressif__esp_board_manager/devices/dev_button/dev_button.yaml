@@ -38,7 +38,6 @@
       press_repeat: false        # Enable press repeat event (default: false)
       press_repeat_done: false   # Enable press repeat done event (default: false)
       press_end: false           # Enable press end event (default: false)
-
   peripherals:
     - name: gpio                 # [TO_BE_CONFIRMED] GPIO peripheral name
 
@@ -119,3 +118,33 @@
 
   peripherals:
     - name: adc_oneshot          # [TO_BE_CONFIRMED] ADC peripheral name
+
+# Example Custom Button device configuration
+- name: custom_button_0          # The name of the device, must be unique
+  type: button                   # The type of the device
+  sub_type: custom               # Button sub type: "gpio", "adc_single", "adc_multi", or "custom"
+  config:
+    # Custom Driver Configuration
+    # The name of the registered custom driver creator function must match the device name.
+    # A function with this name must be registered using DEVICE_EXTRA_FUNC_REGISTER.
+
+    # Button Timing Configuration
+    long_press_time: 2000        # Long press time in milliseconds (default: 2000)
+    short_press_time: 100        # Short press time in milliseconds (default: 100)
+
+    # Event Configuration (NEW - Easy button features)
+    events_cfg:
+      press_down: true           # Enable press down event (default: true)
+      press_up: true             # Enable press up event (default: true)
+      single_click: true         # Enable single click event (default: true)
+      double_click: true         # Enable double click event (default: true)
+      multi_click: false         # Enable multi click event (default: false)
+      click_counts: []           # Multi click counts configuration (default: [])
+      long_press_start: true     # Enable long press start event (default: true)
+      long_press_start_time: []  # Long press start time configuration in ms (default: [])
+      long_press_hold: false     # Enable long press hold event (default: false)
+      long_press_up: true        # Enable long press up event (default: true)
+      long_press_up_time: []     # Long press up time configuration in ms (default: [])
+      press_repeat: false        # Enable press repeat event (default: false)
+      press_repeat_done: false   # Enable press repeat done event (default: false)
+      press_end: false           # Enable press end event (default: false)

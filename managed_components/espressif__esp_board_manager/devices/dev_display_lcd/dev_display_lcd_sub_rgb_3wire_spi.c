@@ -194,4 +194,4 @@ int dev_display_lcd_sub_rgb_3wire_spi_deinit(void *device_handle)
     return dev_display_lcd_sub_rgb_3wire_spi_deinit_with_config(device_handle, cfg);
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(rgb_3wire_spi, dev_display_lcd_sub_rgb_3wire_spi_init, dev_display_lcd_sub_rgb_3wire_spi_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(display_lcd, rgb_3wire_spi, dev_display_lcd_sub_rgb_3wire_spi_init, dev_display_lcd_sub_rgb_3wire_spi_deinit);

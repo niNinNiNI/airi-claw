@@ -158,4 +158,4 @@ int dev_lcd_touch_sub_i2c_deinit(void *device_handle)
     return 0;
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(lcd_touch_sub_i2c, dev_lcd_touch_sub_i2c_init, dev_lcd_touch_sub_i2c_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(lcd_touch, i2c, dev_lcd_touch_sub_i2c_init, dev_lcd_touch_sub_i2c_deinit);

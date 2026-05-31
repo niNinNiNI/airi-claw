@@ -14,13 +14,13 @@ class TestListBoardsBasic:
         """Test listing boards with -l flag"""
         result = run_bmgr_cmd(['-l'])
         assert result.returncode == 0
-        assert 'Main Boards:' in result.stdout
+        assert 'Board Components:' in result.stdout
 
     def test_list_boards_with_long_flag(self, run_bmgr_cmd):
         """Test listing boards with --list-boards flag"""
         result = run_bmgr_cmd(['--list-boards'])
         assert result.returncode == 0
-        assert 'Main Boards:' in result.stdout
+        assert 'Board Components:' in result.stdout
 
     def test_output_contains_boards(self, run_bmgr_cmd, board_count):
         """Test that output contains board entries"""
@@ -71,11 +71,17 @@ class TestBoardNumbering:
 class TestBoardCategories:
     """Test board categorization"""
 
-    def test_main_boards_category_exists(self, run_bmgr_cmd):
-        """Test that Main Boards category is present"""
+    def test_board_components_category_exists(self, run_bmgr_cmd):
+        """Test that Board Components category is present"""
         result = run_bmgr_cmd(['-l'])
         assert result.returncode == 0
-        assert 'Main Boards:' in result.stdout
+        assert 'Board Components:' in result.stdout
+
+    def test_board_component_source_names_exist(self, run_bmgr_cmd):
+        """Test that board list output includes component source names."""
+        result = run_bmgr_cmd(['-l'])
+        assert result.returncode == 0
+        assert 'esp_board_manager:' in result.stdout
 
     def test_at_least_one_board_listed(self, run_bmgr_cmd, board_count):
         """Test that at least one board is listed"""
@@ -108,16 +114,16 @@ class TestListWithOtherOptions:
         """Test that -l ignores -b parameter"""
         result = run_bmgr_cmd(['-l', '-b', valid_board])
         assert result.returncode == 0
-        assert 'Main Boards:' in result.stdout
+        assert 'Board Components:' in result.stdout
 
     def test_list_with_log_level(self, run_bmgr_cmd):
         """Test list boards with --log-level"""
         result = run_bmgr_cmd(['-l', '--log-level', 'DEBUG'])
         assert result.returncode == 0
-        assert 'Main Boards:' in result.stdout
+        assert 'Board Components:' in result.stdout
 
     def test_list_with_customer_path(self, run_bmgr_cmd):
         """Test list boards with -c parameter"""
         result = run_bmgr_cmd(['-l', '-c', 'NONE'])
         assert result.returncode == 0
-        assert 'Main Boards:' in result.stdout
+        assert 'Board Components:' in result.stdout

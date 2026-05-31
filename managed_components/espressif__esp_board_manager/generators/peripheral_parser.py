@@ -66,6 +66,7 @@ class PeripheralParser(LoggerMixin):
         out = {}
         periph_name_map = {}
         peripheral_types = []
+        seen_names = set()
 
         for i, obj in enumerate(peripherals):
             try:
@@ -96,6 +97,14 @@ class PeripheralParser(LoggerMixin):
                     self.logger.info(f"Peripheral #{i+1}: {obj}. Invalid name '{name}'. Peripheral names must be lowercase, start with a letter, and contain only letters, numbers, and underscores")
                     continue
 
+                if name in seen_names:
+                    raise BoardConfigYamlError(
+                        yaml_path,
+                        BoardConfigYamlError.REASON_NOT_A_MAPPING,
+                        f"duplicate peripheral name '{name}' at peripherals[{i}]",
+                    )
+                seen_names.add(name)
+
                 # Validate top-level peripheral fields
                 issues = self.schema_validator.validate_peripheral_fields(obj, name)
                 for issue in issues:
@@ -119,6 +128,8 @@ class PeripheralParser(LoggerMixin):
                 periph_name_map[name] = name  # No mapping needed for device-style names
                 peripheral_types.append(periph_type)
 
+            except BoardConfigYamlError:
+                raise
             except Exception as e:
                 self.logger.error(f'Invalid peripheral configuration! Path: {yaml_path}')
                 self.logger.info(f'Peripheral #{i+1}: {obj}. Error: {e}')

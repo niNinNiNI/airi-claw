@@ -5,7 +5,7 @@
 - name: display_lcd          # The name of the device, must be unique
   type: display_lcd          # The type of the device, must be unique
   version: 1.0.0
-  sub_type: dsi              # The sub type: dsi, spi, or parlio
+  sub_type: dsi              # The sub type: dsi, spi, rgb, rgb_3wire_spi, parlio, or i80
   chip: generic_lcd          # [TO_BE_CONFIRMED] LCD chip type (generic)
   dependencies:
     espressif/esp_lcd_generic: "*"  # [TO_BE_CONFIRMED] Component dependency for the LCD chip
@@ -73,7 +73,7 @@
 - name: display_lcd          # The name of the device, must be unique
   type: display_lcd          # The type of the device, must be unique
   version: 1.0.0
-  sub_type: spi              # The sub type: dsi, spi, or parlio
+  sub_type: spi              # The sub type: dsi, spi, rgb, rgb_3wire_spi, parlio, or i80
   chip: generic_lcd          # [TO_BE_CONFIRMED] LCD chip type (e.g., st77916, st7789, ili9341, gc9a01)
   dependencies:
     espressif/esp_lcd_generic: "*"  # [TO_BE_CONFIRMED] Component dependency for the LCD chip
@@ -333,3 +333,66 @@
       flags:
         reset_active_high: false             # Reset pin active level (default: false)
       vendor_config: ""
+
+# Example LCD Display device with I80 sub device configuration
+- name: display_lcd          # The name of the device, must be unique
+  type: display_lcd          # The type of the device, must be unique
+  version: default
+  sub_type: i80              # The sub type: dsi, spi, rgb, rgb_3wire_spi, parlio, or i80
+  chip: generic_lcd          # [TO_BE_CONFIRMED] LCD chip type (e.g., st7789, nt35510, ili9341)
+  dependencies:
+    espressif/esp_lcd_generic: "*"  # [TO_BE_CONFIRMED] Component dependency for the LCD chip
+  config:
+    swap_xy: false
+    mirror_y: false
+    mirror_x: false
+    x_max: 240                          # [TO_BE_CONFIRMED] Horizontal resolution
+    y_max: 280                          # [TO_BE_CONFIRMED] Vertical resolution
+    invert_color: true   # Invert color flag (default: true)
+    need_reset: true                    # Whether to reset the LCD panel during initialization (default: true)
+
+    # esp_lcd_i80_bus_config_t fields for I80 bus configuration
+    bus_config:
+      dc_gpio_num: -1                   # [IO] GPIO used for D/C line
+      wr_gpio_num: -1                   # [IO] GPIO used for WR line
+      clk_src: 0                        # Clock source for the I80 LCD peripheral (default: 0)
+      data_gpio_nums: []                # [IO] GPIOs used for data lines (D0-D15)
+      bus_width: 8                      # Number of data lines, 8 or 16 (default: 8)
+      max_transfer_bytes: 4092          # Maximum transfer size (default: 4092)
+      dma_burst_size: 64                # DMA burst size in bytes (default: 64)
+
+    # esp_lcd_panel_io_i80_config_t fields for Panel IO configuration
+    io_config:
+      cs_gpio_num: -1                   # [IO] GPIO used for CS line (-1 if exclusive)
+      pclk_hz: 10000000                 # Frequency of pixel clock (default: 10MHz)
+      trans_queue_depth: 10             # Transaction queue size (default: 10)
+      lcd_cmd_bits: 8                   # Bit-width of LCD command (default: 8)
+      lcd_param_bits: 8                 # Bit-width of LCD parameter (default: 8)
+      dc_levels:
+        dc_idle_level: 0                # Level of DC line in IDLE phase
+        dc_cmd_level: 0                 # Level of DC line in CMD phase
+        dc_dummy_level: 0               # Level of DC line in DUMMY phase
+        dc_data_level: 1                # Level of DC line in DATA phase
+      flags:
+        cs_active_high: false           # CS line is high active (default: false)
+        reverse_color_bits: false       # Reverse the data bits
+        swap_color_bytes: false         # Swap adjacent two color bytes
+        pclk_active_neg: false          # Write data on falling edge of WR
+        pclk_idle_low: false            # WR signal stays low in IDLE phase
+
+    # esp_lcd_panel_dev_config_t fields for panel configuration
+    panel_config:
+      reset_gpio_num: -1                # [IO] Reset GPIO pin (default: -1)
+      rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB  # [TO_BE_CONFIRMED] RGB element order (default: RGB)
+      # Valid values:
+      # - LCD_RGB_ELEMENT_ORDER_RGB
+      # - LCD_RGB_ELEMENT_ORDER_BGR
+      data_endian: LCD_RGB_DATA_ENDIAN_BIG      # [TO_BE_CONFIRMED] Data endianness (default: BIG)
+      # Valid values:
+      # - LCD_RGB_DATA_ENDIAN_BIG
+      # - LCD_RGB_DATA_ENDIAN_LITTLE
+      bits_per_pixel: 16                # [TO_BE_CONFIRMED] Bits per pixel (default: 16)
+      flags:
+        reset_active_high: false        # Reset pin active level (default: false)
+      # Chip-specific configuration
+      vendor_config: ""                 # Vendor-specific configuration (default: empty string)

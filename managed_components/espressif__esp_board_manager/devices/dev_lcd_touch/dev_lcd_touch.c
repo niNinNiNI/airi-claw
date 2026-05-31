@@ -5,24 +5,12 @@
  * See LICENSE file for details.
  */
 
-#include <string.h>
 #include "esp_log.h"
 #include "dev_lcd_touch.h"
 #include "esp_board_device.h"
 #include "esp_board_entry.h"
 
 static const char *TAG = "DEV_LCD_TOUCH";
-
-static const char *dev_lcd_touch_resolve_entry_name(const char *sub_type)
-{
-    if (sub_type && strcmp(sub_type, ESP_BOARD_DEVICE_LCD_TOUCH_SUB_TYPE_I2C) == 0) {
-        return "lcd_touch_sub_i2c";
-    }
-    if (sub_type && strcmp(sub_type, ESP_BOARD_DEVICE_LCD_TOUCH_SUB_TYPE_SPI) == 0) {
-        return "lcd_touch_sub_spi";
-    }
-    return sub_type;
-}
 
 int dev_lcd_touch_init(void *cfg, int cfg_size, void **device_handle)
 {
@@ -37,7 +25,7 @@ int dev_lcd_touch_init(void *cfg, int cfg_size, void **device_handle)
         return -1;
     }
 
-    const esp_board_entry_desc_t *entry_desc = esp_board_entry_find_desc(dev_lcd_touch_resolve_entry_name(config->sub_type));
+    const esp_board_entry_desc_t *entry_desc = esp_board_entry_find_subtype_desc("lcd_touch", config->sub_type);
     if (!entry_desc || !entry_desc->init_func) {
         ESP_LOGE(TAG, "Failed to find LCD touch sub device: %s", config->sub_type);
         return -1;
@@ -74,7 +62,7 @@ int dev_lcd_touch_deinit(void *device_handle)
         return -1;
     }
 
-    const esp_board_entry_desc_t *desc = esp_board_entry_find_desc(dev_lcd_touch_resolve_entry_name(cfg->sub_type));
+    const esp_board_entry_desc_t *desc = esp_board_entry_find_subtype_desc("lcd_touch", cfg->sub_type);
     if (!desc || !desc->deinit_func) {
         ESP_LOGE(TAG, "No deinit function found for LCD touch sub type: %s", cfg->sub_type);
         return -1;

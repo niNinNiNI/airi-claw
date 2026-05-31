@@ -240,7 +240,7 @@ def test_bmgr_resolves_component_board_using_project_dir_when_cwd_differs(
 
     assert recorded['board_name'] == 'my_proj_board'
     assert recorded['cwd'] == str(project_root.resolve())
-    assert recorded['cached_boards']['my_proj_board'] == str(board_dir.resolve())
+    assert recorded['cached_boards']['my_proj_board'].path == str(board_dir.resolve())
 
 
 def test_bmgr_resolves_relative_customer_path_from_project_dir_when_cwd_differs(
@@ -283,4 +283,4 @@ def test_bmgr_resolves_relative_customer_path_from_project_dir_when_cwd_differs(
 
     assert recorded['board_name'] == 'rel_board'
     assert recorded['board_customer_path'] == str(customer_root.resolve())
-    assert recorded['cached_boards']['rel_board'] == str(board_dir.resolve())
+    assert recorded['cached_boards']['rel_board'].path == str(board_dir.resolve())

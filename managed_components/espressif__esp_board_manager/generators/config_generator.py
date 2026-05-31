@@ -10,6 +10,7 @@ Configuration generator for ESP Board Manager
 import os
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 
@@ -24,6 +25,68 @@ from .parser_loader import load_parsers
 from .peripheral_parser import PeripheralParser
 from .device_parser import DeviceParser
 from .name_validator import parse_component_name
+
+
+@dataclass(frozen=True)
+class BoardDirectory:
+    """A discovered board directory with source information for UI and stable ordering."""
+
+    name: str
+    path: str
+    source: str
+    source_type: str
+
+
+def format_board_groups(board_infos: Dict[str, BoardDirectory]) -> List[str]:
+    """Format discovered boards for CLI list output."""
+    if not board_infos:
+        return []
+
+    source_type_order = {'component': 0, 'customer': 1}
+    ordered_infos = sorted(
+        board_infos.values(),
+        key=lambda info: (
+            source_type_order.get(info.source_type, 9),
+            info.source.lower(),
+            info.name.lower(),
+        ),
+    )
+
+    groups: Dict[Tuple[str, str], List[str]] = {}
+    for info in ordered_infos:
+        groups.setdefault((info.source_type, info.source), []).append(info.name)
+
+    lines: List[str] = []
+    board_idx = 1
+
+    component_groups = [
+        (source, names)
+        for (source_type, source), names in groups.items()
+        if source_type == 'component'
+    ]
+    if component_groups:
+        lines.append('Board Components:')
+        for source, names in component_groups:
+            lines.append(f'  {source}:')
+            for board_name in names:
+                lines.append(f'    [{board_idx}] {board_name}')
+                board_idx += 1
+            lines.append('')
+
+    customer_groups = [
+        (source, names)
+        for (source_type, source), names in groups.items()
+        if source_type == 'customer'
+    ]
+    if customer_groups:
+        lines.append('Customer Boards:')
+        for _source, names in customer_groups:
+            for board_name in names:
+                lines.append(f'  [{board_idx}] {board_name}')
+                board_idx += 1
+        lines.append('')
+
+    return lines
 
 
 class ConfigGenerator(LoggerMixin):
@@ -151,61 +214,120 @@ class ConfigGenerator(LoggerMixin):
         m = re.search(r'(\d+)$', name)
         return int(m.group(1)) if m else -1
 
-    def scan_board_directories(self, board_customer_path: Optional[str] = None) -> Dict[str, str]:
-        """Scan all board directories including main, component, and customer boards"""
-        all_boards = {}
+    def _component_name_from_path(self, component_path: Path) -> str:
+        """Return a display name for an IDF component directory."""
+        name = component_path.name
+        if '__' in name:
+            namespace, component = name.split('__', 1)
+            if namespace and component:
+                return f'{namespace}/{component}'
+        return name
 
-        # 1. Scan main boards directory
+    def _source_for_board_path(self, board_path: str, customer_path: Optional[str] = None) -> Tuple[str, str]:
+        """Infer board source type and display name from a discovered board path."""
+        path = Path(board_path).resolve()
+        if path.parent == self.boards_dir.resolve():
+            return 'component', self.root_dir.name
+
+        resolved_customer = Path(customer_path).resolve() if customer_path else None
+        if resolved_customer:
+            try:
+                path.relative_to(resolved_customer)
+                return 'customer', 'customer'
+            except ValueError:
+                pass
+
+        parts = path.parts
+        for marker in ('managed_components', 'components'):
+            if marker not in parts:
+                continue
+            marker_index = parts.index(marker)
+            component_index = marker_index + 1
+            if component_index < len(parts):
+                return 'component', self._component_name_from_path(Path(parts[component_index]))
+
+        return 'component', 'external'
+
+    def _record_board_directory(
+        self,
+        boards: Dict[str, BoardDirectory],
+        board_name: str,
+        board_path: str,
+        source_type: str,
+        source: str,
+    ) -> None:
+        """Add a board to the scan result, preserving later-source override priority."""
+        board_path_abs = str(Path(board_path).resolve())
+        existing = boards.get(board_name)
+        if existing:
+            self.logger.warning(
+                f'⚠️  Duplicate board "{board_name}" from {board_path_abs} overrides '
+                f'previous board from {existing.path}'
+            )
+        boards[board_name] = BoardDirectory(
+            name=board_name,
+            path=board_path_abs,
+            source=source,
+            source_type=source_type,
+        )
+
+    def scan_board_directories(self, board_customer_path: Optional[str] = None) -> Dict[str, BoardDirectory]:
+        """Scan all board directories and return them with source metadata.
+
+        Returns a dict mapping board name to :class:`BoardDirectory`. Callers that only
+        need the path can read ``info.path``; callers that need to group or order by
+        origin can read ``info.source`` / ``info.source_type``.
+        """
+        all_boards: Dict[str, BoardDirectory] = {}
+
+        # 1. Scan boards directory that belongs to this component.
         if self.boards_dir.exists():
-            self.logger.info(f'   Scanning main boards: {self.boards_dir}')
+            self.logger.info(f'   Scanning component boards: {self.boards_dir}')
             for d in os.listdir(self.boards_dir):
                 board_path = self.boards_dir / d
 
                 if not board_path.is_dir():
                     continue
 
-                # Check if this is a valid board (has all 3 required YAML files)
                 if self._is_board_directory(str(board_path)):
                     if self.is_valid_board_name(d):
-                        all_boards[d] = str(board_path)
-                        self.logger.debug(f'Found valid board in main directory: {d}')
+                        self._record_board_directory(
+                            all_boards, d, str(board_path), 'component', self.root_dir.name
+                        )
+                        self.logger.debug(f'Found valid board in component directory: {d}')
                     else:
                         self.logger.warning(
                             f'⚠️  Skipping board with invalid name "{d}". Board names must contain only letters, numbers, and underscores.'
                         )
                 else:
-                    # Check if it has any of the YAML files but missing others (invalid board)
-                    # We check for ANY of the 3 files to decide if it's an incomplete board
                     yaml_files = ['board_info.yaml', 'board_peripherals.yaml', 'board_devices.yaml']
                     found_files = [f for f in yaml_files if (board_path / f).exists()]
 
                     if found_files:
                         missing_files = [f for f in yaml_files if f not in found_files]
                         self.logger.warning(
-                            f'⚠️  Skipping invalid board "{d}" in main directory - missing required files: {", ".join(missing_files)}'
+                            f'⚠️  Skipping invalid board "{d}" in component directory - missing required files: {", ".join(missing_files)}'
                         )
 
-        # 2. Scan components boards directories (recursive scan)
-        # Get project root first, then check if components exists
+        # 2. Scan project component board directories.
         project_root = self.get_project_root()
 
         if project_root:
-            components_dir = os.path.join(project_root, 'components')
-            # Get absolute path of Default boards to exclude
             default_boards_path = str(self.boards_dir.resolve()) if hasattr(self.boards_dir, 'resolve') else str(self.boards_dir)
+            components_dir = os.path.join(project_root, 'components')
 
             if os.path.exists(components_dir):
                 self.logger.info(f'   Scanning component boards (recursive): {components_dir}')
-                component_boards = self._scan_all_directories_for_boards(
+                component_boards = self._scan_all_directories_for_board_infos(
                     components_dir,
                     'component',
                     exclude_path=default_boards_path,
                     max_depth=3,
                 )
-                all_boards.update(component_boards)
+                for info in component_boards.values():
+                    self._record_board_directory(all_boards, info.name, info.path, info.source_type, info.source)
 
-            # 2.1 Scan managed_components boards directories
-            # Scan directories under managed_components whose name contains 'boards'
+            # 2.1 Scan managed_components board directories.
             managed_components_dir = os.path.join(project_root, 'managed_components')
             if os.path.exists(managed_components_dir):
                 self.logger.info(f'   Scanning managed components boards: {managed_components_dir}')
@@ -213,31 +335,37 @@ class ConfigGenerator(LoggerMixin):
                     for d in os.listdir(managed_components_dir):
                         subdir_path = os.path.join(managed_components_dir, d)
                         if os.path.isdir(subdir_path) and 'boards' in d:
+                            source = self._component_name_from_path(Path(d))
                             self.logger.info(f'     Found potential board component in managed_components: {d}')
 
-                            # Check if the component itself is a board directory
                             if self._is_board_directory(subdir_path):
                                 board_name = d
                                 if self.is_valid_board_name(board_name):
-                                    all_boards[board_name] = subdir_path
+                                    self._record_board_directory(
+                                        all_boards, board_name, subdir_path, 'component', source
+                                    )
                                     self.logger.debug(f'     Found single board in managed_components: {board_name}')
                                 else:
                                     self.logger.warning(
                                         f'⚠️  Skipping board with invalid name "{board_name}". Board names must contain only letters, numbers, and underscores.'
                                     )
                             else:
-                                # Recursively scan for boards within the component
-                                managed_boards = self._scan_all_directories_for_boards(
+                                managed_boards = self._scan_all_directories_for_board_infos(
                                     subdir_path,
                                     f'component (managed: {d})',
                                     exclude_path=default_boards_path,
-                                    max_depth=3
+                                    max_depth=3,
+                                    source='component',
+                                    source_name=source,
                                 )
-                                all_boards.update(managed_boards)
+                                for info in managed_boards.values():
+                                    self._record_board_directory(
+                                        all_boards, info.name, info.path, info.source_type, info.source
+                                    )
                 except Exception as e:
                     self.logger.debug(f'Error scanning managed_components: {e}')
 
-            # 2.2 main/idf_component.yml — local overrides for board-named dependencies only
+            # 2.2 main/idf_component.yml local overrides for board-named dependencies.
             try:
                 override_entries, override_missing = collect_main_override_board_paths(Path(project_root))
             except Exception as e:
@@ -267,7 +395,7 @@ class ConfigGenerator(LoggerMixin):
                 if self._is_board_directory(abs_path):
                     board_name = os.path.basename(abs_path)
                     if self.is_valid_board_name(board_name):
-                        all_boards[board_name] = abs_path
+                        self._record_board_directory(all_boards, board_name, abs_path, 'component', dep_name)
                         self.logger.debug(f'Found single board (main override): {board_name}')
                     else:
                         self.logger.warning(
@@ -275,46 +403,148 @@ class ConfigGenerator(LoggerMixin):
                             'Board names must contain only letters, numbers, and underscores.'
                         )
                 else:
-                    main_override_boards = self._scan_all_directories_for_boards(
+                    main_override_boards = self._scan_all_directories_for_board_infos(
                         abs_path,
                         f'main override ({dep_name})',
                         exclude_path=default_boards_path,
                         max_depth=3,
+                        source='component',
+                        source_name=dep_name,
                     )
-                    all_boards.update(main_override_boards)
+                    for info in main_override_boards.values():
+                        self._record_board_directory(all_boards, info.name, info.path, info.source_type, info.source)
 
-        # 3. Scan customer boards directory if provided
+        # 3. Scan customer boards directory if provided.
         if board_customer_path and board_customer_path != 'NONE':
             self.logger.info(f'Scanning customer boards: {board_customer_path}')
             if os.path.exists(board_customer_path):
-                # Check if the path is a single board directory or a directory containing multiple boards
                 if self._is_board_directory(board_customer_path):
-                    # It's a single board directory
                     board_name = os.path.basename(board_customer_path)
                     if self.is_valid_board_name(board_name):
-                        all_boards[board_name] = board_customer_path
+                        self._record_board_directory(all_boards, board_name, board_customer_path, 'customer', 'customer')
                         self.logger.debug(f'Found single board: {board_name}')
                     else:
                         self.logger.warning(
                             f'⚠️  Skipping board with invalid name "{board_name}". Board names must contain only letters, numbers, and underscores.'
                         )
-                    # Moved to post-selection phase
-                    # self.check_board_name_consistency(board_customer_path, board_name)
                 else:
-                    # It's a directory containing multiple boards (recursive scan)
-                    customer_boards = self._scan_all_directories_for_boards(
+                    customer_boards = self._scan_all_directories_for_board_infos(
                         board_customer_path,
                         'customer',
                         exclude_path=None,
                         max_depth=3,
+                        source='customer',
+                        source_name='customer',
                     )
-                    all_boards.update(customer_boards)
+                    for info in customer_boards.values():
+                        self._record_board_directory(all_boards, info.name, info.path, info.source_type, info.source)
             else:
                 self.logger.warning(f'⚠️  Warning: Customer boards path does not exist: {board_customer_path}')
         else:
             self.logger.debug(f'   No customer boards path specified')
 
         return all_boards
+
+    def sorted_board_infos(self, board_infos: Dict[str, BoardDirectory]) -> List[BoardDirectory]:
+        """Return board infos in the same deterministic order used by the CLI list view."""
+        source_type_order = {'component': 0, 'customer': 1}
+        return sorted(
+            board_infos.values(),
+            key=lambda info: (
+                source_type_order.get(info.source_type, 9),
+                info.source.lower(),
+                info.name.lower(),
+            ),
+        )
+
+    def ordered_board_names(self, board_customer_path: Optional[str] = None) -> List[str]:
+        """Return board names in list-view order."""
+        return [info.name for info in self.sorted_board_infos(self.scan_board_directories(board_customer_path))]
+
+    def _scan_all_directories_for_board_infos(
+        self,
+        root_dir: str,
+        dir_name: str,
+        exclude_path: Optional[str] = None,
+        depth: int = 0,
+        max_depth: int = 3,
+        source: Optional[str] = None,
+        source_name: Optional[str] = None,
+    ) -> Dict[str, BoardDirectory]:
+        board_dirs: Dict[str, BoardDirectory] = {}
+
+        if not os.path.exists(root_dir):
+            self.logger.warning(f'⚠️  {dir_name} directory does not exist: {root_dir}')
+            return board_dirs
+
+        if depth >= max_depth:
+            self.logger.debug(f'Max recursion depth ({max_depth}) reached at: {root_dir}')
+            return board_dirs
+
+        if depth == 0:
+            self.logger.info(f'Scanning all directories in {dir_name} path: {root_dir}')
+
+        try:
+            for d in os.listdir(root_dir):
+                board_path = os.path.join(root_dir, d)
+
+                if not os.path.isdir(board_path):
+                    continue
+
+                if self._is_board_directory(board_path):
+                    if exclude_path:
+                        board_abs_path = os.path.abspath(board_path)
+                        parent_abs_path = os.path.abspath(os.path.dirname(board_path))
+                        exclude_abs_path = os.path.abspath(exclude_path)
+
+                        if parent_abs_path == exclude_abs_path:
+                            self.logger.debug(f'Skipping excluded board: {d}')
+                            continue
+
+                    if self.is_valid_board_name(d):
+                        source_type, inferred_source = self._source_for_board_path(board_path)
+                        info = BoardDirectory(
+                            name=d,
+                            path=str(Path(board_path).resolve()),
+                            source=source_name or inferred_source,
+                            source_type=source or source_type,
+                        )
+                        board_dirs[d] = info
+                        self.logger.debug(f'Found valid board in {dir_name}: {d}')
+                    else:
+                        self.logger.warning(
+                            f'⚠️  Skipping board with invalid name "{d}". Board names must contain only letters, numbers, and underscores.'
+                        )
+                else:
+                    yaml_files = ['board_info.yaml', 'board_peripherals.yaml', 'board_devices.yaml']
+                    found_files = [f for f in yaml_files if os.path.isfile(os.path.join(board_path, f))]
+
+                    if found_files:
+                        missing_files = [f for f in yaml_files if f not in found_files]
+                        self.logger.warning(
+                            f'⚠️  Skipping invalid board "{d}" - missing required files: {", ".join(missing_files)}'
+                        )
+                    else:
+                        sub_boards = self._scan_all_directories_for_board_infos(
+                            board_path,
+                            f'{dir_name}/{d}',
+                            exclude_path=exclude_path,
+                            depth=depth + 1,
+                            max_depth=max_depth,
+                            source=source,
+                            source_name=source_name,
+                        )
+                        for info in sub_boards.values():
+                            self._record_board_directory(
+                                board_dirs, info.name, info.path, info.source_type, info.source
+                            )
+
+        except PermissionError:
+            self.logger.warning(f'⚠️  Permission denied accessing {root_dir}')
+        except Exception as e:
+            self.logger.debug(f'Error scanning {root_dir}: {e}')
+
+        return board_dirs
 
     def _scan_all_directories_for_boards(
         self,
@@ -342,78 +572,14 @@ class ConfigGenerator(LoggerMixin):
         Returns:
             Dictionary of board_name -> board_path
         """
-        board_dirs = {}
-
-        if not os.path.exists(root_dir):
-            self.logger.warning(f'⚠️  {dir_name} directory does not exist: {root_dir}')
-            return board_dirs
-
-        # Limit recursion depth for safety
-        if depth >= max_depth:
-            self.logger.debug(f'Max recursion depth ({max_depth}) reached at: {root_dir}')
-            return board_dirs
-
-        if depth == 0:
-            self.logger.info(f'Scanning all directories in {dir_name} path: {root_dir}')
-
-        try:
-            for d in os.listdir(root_dir):
-                board_path = os.path.join(root_dir, d)
-
-                if not os.path.isdir(board_path):
-                    continue
-
-                # Check if this is a valid board directory (has all 3 required files)
-                if self._is_board_directory(board_path):
-                    # Check if this path should be excluded
-                    if exclude_path:
-                        board_abs_path = os.path.abspath(board_path)
-                        parent_abs_path = os.path.abspath(os.path.dirname(board_path))
-                        exclude_abs_path = os.path.abspath(exclude_path)
-
-                        if parent_abs_path == exclude_abs_path:
-                            self.logger.debug(f'Skipping excluded board: {d}')
-                            continue
-
-                    # Found a valid board
-                    if self.is_valid_board_name(d):
-                        board_dirs[d] = board_path
-                        self.logger.debug(f'Found valid board in {dir_name}: {d}')
-                    else:
-                        self.logger.warning(
-                            f'⚠️  Skipping board with invalid name "{d}". Board names must contain only letters, numbers, and underscores.'
-                        )
-                    # Moved to post-selection phase
-                    # self.check_board_name_consistency(board_path, d)
-                else:
-                    # Check if it has any YAML files but missing others (invalid board)
-                    # We check for ANY of the 3 files to decide if it's an incomplete board
-                    yaml_files = ['board_info.yaml', 'board_peripherals.yaml', 'board_devices.yaml']
-                    found_files = [f for f in yaml_files if os.path.isfile(os.path.join(board_path, f))]
-
-                    if found_files:
-                        # This looks like it was intended to be a board but is incomplete
-                        missing_files = [f for f in yaml_files if f not in found_files]
-                        self.logger.warning(
-                            f'⚠️  Skipping invalid board "{d}" - missing required files: {", ".join(missing_files)}'
-                        )
-                    else:
-                        # Not a board directory (no YAML files), continue scanning subdirectories
-                        sub_boards = self._scan_all_directories_for_boards(
-                            board_path,
-                            f'{dir_name}/{d}',
-                            exclude_path=exclude_path,
-                            depth=depth + 1,
-                            max_depth=max_depth
-                        )
-                        board_dirs.update(sub_boards)
-
-        except PermissionError:
-            self.logger.warning(f'⚠️  Permission denied accessing {root_dir}')
-        except Exception as e:
-            self.logger.debug(f'Error scanning {root_dir}: {e}')
-
-        return board_dirs
+        infos = self._scan_all_directories_for_board_infos(
+            root_dir,
+            dir_name,
+            exclude_path=exclude_path,
+            depth=depth,
+            max_depth=max_depth,
+        )
+        return {name: info.path for name, info in infos.items()}
 
     def _is_board_directory(self, path: str) -> bool:
         """
@@ -505,14 +671,15 @@ class ConfigGenerator(LoggerMixin):
 
         return selected_board
 
-    def find_board_config_files(self, board_name: str, all_boards: Dict[str, str]) -> Tuple[Optional[str], Optional[str]]:
+    def find_board_config_files(self, board_name: str, all_boards: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
         """Find board_peripherals.yaml and board_devices.yaml for the selected board"""
         if board_name not in all_boards:
             self.logger.error(f"Board '{board_name}' not found in any boards directory")
             self.logger.error(f'Available boards: {list(all_boards.keys())}')
             return None, None
 
-        board_path = all_boards[board_name]
+        board_info = all_boards[board_name]
+        board_path = board_info.path if isinstance(board_info, BoardDirectory) else board_info
         periph_yaml_path = os.path.join(board_path, 'board_peripherals.yaml')
         dev_yaml_path = os.path.join(board_path, 'board_devices.yaml')
 

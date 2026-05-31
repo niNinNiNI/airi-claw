@@ -73,7 +73,7 @@ class TestLogLevelWithOtherCommands:
         result = run_bmgr_cmd(['-l', '--log-level', 'DEBUG'])
         assert result.returncode == 0
         # With DEBUG level, output should still contain board list
-        assert 'Main Boards:' in result.stdout or 'Board' in result.stdout
+        assert 'Board Components:' in result.stdout or 'Board' in result.stdout
 
     def test_log_level_error_with_list_boards(self, run_bmgr_cmd):
         """Test --log-level ERROR with -l command"""
@@ -95,4 +95,3 @@ class TestCaseSensitivity:
         """Test that uppercase log levels are accepted"""
         result = run_bmgr_cmd(['-b', valid_board, '--log-level', 'INFO', '--kconfig-only'])
         assert result.returncode == 0
-

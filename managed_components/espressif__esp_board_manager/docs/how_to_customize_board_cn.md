@@ -174,10 +174,11 @@ devices:
          espressif/gmf_core:
             version: '*'  # 使用来自 espressif 组件注册表的版本
             override_path: ${BOARD_PATH}/gmf_core
-            # 可选：允许您使用本地组件而不是从组件注册表下载的版本。
+            # 可选：允许您使用本地组件而不是从组件注册表下载的版本
             # 您可以指定：
             #   - 绝对路径，或
             #   - 在 ${BOARD_PATH} 下的相对路径以便于管理
+       depends_on: <device_name>  # 可选: 用于声明当前设备依赖的其他设备
        config:
          # 设备特定配置
          sub_config:      # 可选：如果存在 sub_type，则提供子配置
@@ -197,6 +198,35 @@ devices:
 > - `${BOARD_PATH}` 是一个特殊变量，始终指向当前板子定义的根目录（即包含您的 `board_devices.yaml` 的文件夹）。
 > - 在 `override_path` 或 `path` 字段中指定本地或板子特定组件路径时，始终使用 `${BOARD_PATH}`。更多详情请参考[本地目录依赖](https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html#local-directory-dependencies)。
 > - ❌ **错误**：`{{BOARD_PATH}}` 或 `$BOARD_PATH`
+
+### 设备依赖（`depends_on`）
+
+可选字段，类型为字符串或字符串列表，用于声明当前设备依赖的其他设备。Board Manager 会**先**初始化依赖项、**最后**才反初始化它们；只要还有任意活跃设备依赖某项，该项就会保持初始化状态不被释放。
+
+```yaml
+devices:
+  - name: io_expander_aw9523
+    type: gpio_expander
+    # ... config ...
+
+  - name: display_lcd
+    type: display_lcd
+    sub_type: i80
+    depends_on:
+      - io_expander_aw9523    # LCD 初始化前先初始化 IO 扩展芯片；LCD 反初始化后再释放它
+    # ... config ...
+
+  - name: button_power
+    type: button
+    sub_type: custom
+    depends_on: io_expander_aw9523    # 单个依赖可以直接用字符串
+```
+
+语义：
+
+- 在 `esp_board_manager_init()`（以及 `esp_board_device_init(name)`）时，`depends_on` 中的每一项会被先初始化。若任一依赖初始化失败，已部分初始化的依赖链会自动回滚。
+- 反初始化阶段，只要还有其他活跃设备在 `depends_on` 中声明了某设备，该设备就不能被反初始化，运行时会返回 `ESP_BOARD_ERR_DEVICE_DEP_IN_USE`。
+- `depends_on` 中存在循环依赖时，parser 会在生成阶段检测并报错。
 
 ### 5. **板子特定的 SDK 配置（可选）**
 
@@ -236,16 +266,24 @@ devices:
 - 在必要时覆盖或扩展默认的设备初始化行为
 
 有关具体实现示例可以参考：
-[setup_device.c](esp_board_manager/boards/esp_vocat_board_v1_2/setup_device.c)，该文件实现了 display_lcd 和 lcd_touch 设备的特定初始化流程
+[setup_device.c](../boards/esp_vocat_board_v1_2/setup_device.c)，该文件实现了 display_lcd 和 lcd_touch 设备的特定初始化流程
 
 ### 7. 使用 `-a/--amend` 基于已有板子做局部定制
 
 如果只需要在内置板子上做少量差异，例如修改某个管脚、替换触摸芯片、追加板子默认没有的设备，通常不需要复制整份板子目录。可以准备一个 **amend 目录**，里面放一份 `board_amend.yaml` 清单，然后使用 `-a/--amend <dir>` 在生成时把这些变更"打补丁"到已选板子之上。
 
+在常规 ESP-IDF 项目中使用 idf.py bmgr 时，`-a/--amend` 相对路径通常按项目目录解析；如果 amend 目录放在所选板子目录下，也可以直接写子目录名。
+
 ```bash
 # amend 目录是一个绝对/相对路径，里面必须有 board_amend.yaml
 idf.py bmgr -b esp32_s3_korvo2_v3 -a path/to/my_amend
+
+# 如果 amend 目录放在已选板子的目录下，可以直接写子目录名
+# 例如: boards/esp32_s3_lcd_ev_board/sub_board_800_480_lcd
+idf.py bmgr -b esp32_s3_lcd_ev_board -a sub_board_800_480_lcd
 ```
+
+因此，推荐把同一块主板的不同硬件子板、屏幕模组或小范围变体放在该板子的目录下，例如 `boards/esp32_s3_lcd_ev_board/sub_board_800_480_lcd/`。使用时只需要传入子目录名，避免写 `../boards/...` 这种较长且容易受工程路径影响的相对路径。
 
 #### amend 目录结构
 
@@ -351,7 +389,7 @@ devices:
 
 ## YAML 配置规则
 
-有关详细的 YAML 配置规则和格式规范，请参阅 [设备和外设规则](device_and_peripheral_rules.md)。
+有关详细的 YAML 配置规则和格式规范，请参阅 [设备和外设规则](device_and_peripheral_rules_cn.md)。
 
 ## 板子选择优先级
 

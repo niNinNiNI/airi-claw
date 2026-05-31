@@ -70,4 +70,4 @@ int dev_led_strip_sub_spi_deinit(void *device_handle)
     return 0;
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(led_strip_sub_spi, dev_led_strip_sub_spi_init, dev_led_strip_sub_spi_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(led_strip, spi, dev_led_strip_sub_spi_init, dev_led_strip_sub_spi_deinit);

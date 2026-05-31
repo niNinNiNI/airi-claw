@@ -37,7 +37,7 @@ def test_list_boards():
     print(f'{Colors.BLUE}Test 1:{Colors.NC} List boards with -l')
     result = run_command(['-l'])
 
-    if result.returncode == 0 and 'Main Boards:' in result.stdout:
+    if result.returncode == 0 and 'Board Components:' in result.stdout:
         print(f'  {Colors.GREEN}✅ PASSED{Colors.NC}')
         return True
     else:
@@ -188,4 +188,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-

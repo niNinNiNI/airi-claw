@@ -139,10 +139,18 @@ typedef struct {
     button_config_t             button_timing_cfg;  /*!< Button timing configuration */
     dev_button_events_config_t  events_cfg;         /*!< Configuration for button events (enabled events and parameters) */
     union {
-        dev_button_gpio_sub_config_t  gpio;  /*!< GPIO button configuration */
-        dev_button_adc_sub_config_t   adc;   /*!< ADC button configuration */
-    } sub_cfg;                               /*!< Sub device configuration */
+        dev_button_gpio_sub_config_t    gpio;    /*!< GPIO button configuration */
+        dev_button_adc_sub_config_t     adc;     /*!< ADC button configuration */
+    } sub_cfg;                                   /*!< Sub device configuration */
 } dev_button_config_t;
+
+/**
+ * @brief  Custom button driver creator function prototype
+ *
+ * @param[in]  config  Pointer to the button configuration structure
+ * @return     Pointer to the created button_driver_t structure, or NULL on failure
+ */
+typedef button_driver_t *(*dev_button_custom_driver_create_t)(const dev_button_config_t *config);
 
 /**
  * @brief  Initialize the button device with the given configuration

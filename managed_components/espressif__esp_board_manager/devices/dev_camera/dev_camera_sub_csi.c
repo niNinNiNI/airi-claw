@@ -152,4 +152,4 @@ int dev_camera_sub_csi_deinit(void *device_handle)
     return ret == ESP_OK ? 0 : -1;
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(csi, dev_camera_sub_csi_init, dev_camera_sub_csi_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(camera, csi, dev_camera_sub_csi_init, dev_camera_sub_csi_deinit);

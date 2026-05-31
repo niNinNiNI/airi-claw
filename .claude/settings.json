@@ -8,7 +8,18 @@
       "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/10_mp4_player/**)",
       "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/10_mp4_player/managed_components/espressif__esp_lcd_st7701/**)",
       "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/10_mp4_player/managed_components/espressif__esp_lvgl_adapter/**)",
-      "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/esp_driver_ppa/include/driver/**)"
+      "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/esp_driver_ppa/include/driver/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/07_Displaycolorbar/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/07_Displaycolorbar/main/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/07_Displaycolorbar/components/esp32_p4_wifi6_touch_lcd_4_3/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/07_Displaycolorbar/components/esp32_p4_wifi6_touch_lcd_4_3/include/bsp/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/12_usb_extend_screen/main/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/12_usb_extend_screen/main/include/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/12_usb_extend_screen/components/esp32_p4_wifi6_touch_lcd_4_3/**)",
+      "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/12_usb_extend_screen/components/bsp_extra/src/**)",
+      "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/esp_lcd/include/**)",
+      "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/hal/include/hal/**)",
+      "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/hal/esp32p4/include/hal/**)"
     ],
     "additionalDirectories": [
       "/home/nini/esp-claw-master_1/esp-claw-master/components/common/voice_ws_common",
@@ -21,7 +32,9 @@
       "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_servo",
       "/home/nini/esp-claw-master_1/esp-claw-master/components/common/emote",
       "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_lua/src",
-      "/home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display/src"
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display/src",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/common/ppa_mirror",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display"
     ]
   }
 }

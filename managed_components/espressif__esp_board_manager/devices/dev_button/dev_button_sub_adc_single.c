@@ -113,4 +113,4 @@ int dev_button_sub_adc_single_deinit(void *device_handle)
     return ret == ESP_OK ? 0 : -1;
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(adc_single, dev_button_sub_adc_single_init, dev_button_sub_adc_single_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(button, adc_single, dev_button_sub_adc_single_init, dev_button_sub_adc_single_deinit);

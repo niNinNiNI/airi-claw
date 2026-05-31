@@ -118,6 +118,24 @@ class TestBoardDevicesYaml(unittest.TestCase):
         finally:
             shutil.rmtree(d, ignore_errors=True)
 
+    def test_depends_on_unknown_device_aborts(self):
+        d = self._devices_only_dir()
+        try:
+            main = d / 'board_devices.yaml'
+            main.write_text(
+                'devices:\n'
+                '  - name: display_lcd\n'
+                '    type: display_lcd\n'
+                '    depends_on: missing_touch\n',
+                encoding='utf-8',
+            )
+            dp = DeviceParser(BMGR_ROOT)
+            with self.assertRaises(ValueError) as ctx:
+                dp.parse_devices_yaml_legacy(str(main), {}, stop_on_error=True)
+            self.assertIn('Unknown depends_on device', str(ctx.exception))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
     def test_yaml_syntax_error_aborts(self):
         d = self._devices_only_dir()
         try:

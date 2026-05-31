@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.13
+
+### Bug Fixes
+
+- Fixed same-named board selection priority after the 0.5.12 board source metadata change. Later scanned sources now override earlier ones again, so `-c/--customer-path` boards correctly take priority over component and built-in boards.
+
+## 0.5.12
+
+### Important Changes
+
+- Board scan/list output now keeps source metadata and groups boards by component/customer source, making managed-component and custom-board results easier to distinguish.
+
+### Features
+
+- Support for `depends_on` device dependency configuration. The `depends_on` field allows you to specify one or more prerequisite devices. During initialization, dependencies are initialized automatically. During de-initialization, shared dependencies are kept alive while active devices still rely on them.
+- Built-in device sub-type entries are now registered with `type_sub_type` names through `ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT`, avoiding collisions between common sub-type names such as `gpio`, `spi`, and `i2c`.
+- Support short `-a/--amend` paths under the selected board directory, for example `-a sub_board_800_480_lcd`.
+- Add support for I80 LCD (`display_lcd` with `sub_type: i80`)
+- Add support for custom button (`button` with `sub_type: custom`)
+- Added full board support for **ESP32-S3 BOX2**, including GPIO expander, ES8389 audio codec, SPI SD card, I80 ST7789 LCD, and custom buttons.
+- Added full board support for **ESP32-P4-EYE**, including PDM microphone, SDMMC SD card, SPI LCD, CSI camera, GPIO buttons, flashlight LED, and power controls.
+- Added the `display_lvgl` example for initializing a Board Manager LCD device and running an LVGL test UI.
+- Updated **M5Stack Tab5** support to handle both ILI9881C/GT911 and ST7123 panel/touch variants through runtime probing and board-specific setup.
+
+### Bug Fixes
+
+- Reject duplicate device and peripheral names when parsing board YAML, preventing ambiguous generated configs.
+
 ## 0.5.11
 
 ### ⚠️ Important Changes

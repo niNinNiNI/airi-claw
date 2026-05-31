@@ -80,4 +80,4 @@ int dev_display_lcd_sub_parlio_deinit(void *device_handle)
     return dev_display_lcd_sub_parlio_deinit_with_config(device_handle, cfg);
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(parlio, dev_display_lcd_sub_parlio_init, dev_display_lcd_sub_parlio_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(display_lcd, parlio, dev_display_lcd_sub_parlio_init, dev_display_lcd_sub_parlio_deinit);

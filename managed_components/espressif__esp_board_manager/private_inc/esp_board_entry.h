@@ -68,6 +68,20 @@ typedef struct {
         .deinit_func = deinit_func_entry}
 
 /**
+ * @brief  Macro to define a device sub-type entry implementation
+ *
+ *         The entry name is generated as "type_sub_type" to avoid collisions
+ *         between common sub-type names like "gpio", "spi", or "i2c".
+ *
+ * @param  type         Device type token
+ * @param  sub_type     Device sub-type token
+ * @param  init_func    Initialization function pointer
+ * @param  deinit_func  Deinitialization function pointer
+ */
+#define ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(type, sub_type, init_func_entry, deinit_func_entry)  \
+    ESP_BOARD_ENTRY_IMPLEMENT(type##_##sub_type, init_func_entry, deinit_func_entry)
+
+/**
  * @brief  Legacy macro for board device implementation
  *
  *         This is a compatibility macro that maps to ESP_BOARD_ENTRY_IMPLEMENT.
@@ -125,6 +139,44 @@ static inline const esp_board_entry_desc_t *esp_board_entry_find_desc(const char
     for (const esp_board_entry_desc_t *desc = &_esp_board_entries_array_start;
          desc != &_esp_board_entries_array_end; desc++) {
         if (strcmp(desc->entry_name, entry_name) == 0) {
+            return desc;
+        }
+    }
+    return NULL;
+}
+
+/**
+ * @brief  Find a device sub-type entry descriptor by device type and sub-type
+ *
+ *         This searches for linker entries registered with the generated
+ *         "type_sub_type" name. For example, ("button", "gpio") resolves
+ *         to the "button_gpio" entry.
+ *
+ * @param  type      Device type
+ * @param  sub_type  Device sub-type
+ *
+ * @return
+ *       - NULL    If not found or any argument is NULL
+ *       - Others  Pointer to the entry descriptor
+ */
+static inline const esp_board_entry_desc_t *esp_board_entry_find_subtype_desc(const char *type, const char *sub_type)
+{
+    if (type == NULL || sub_type == NULL) {
+        return NULL;
+    }
+
+    const size_t type_len = strlen(type);
+    extern const esp_board_entry_desc_t _esp_board_entries_array_start;
+    extern const esp_board_entry_desc_t _esp_board_entries_array_end;
+    for (const esp_board_entry_desc_t *desc = &_esp_board_entries_array_start;
+         desc != &_esp_board_entries_array_end; desc++) {
+        const char *entry_name = desc->entry_name;
+        if (entry_name == NULL) {
+            continue;
+        }
+        if (strncmp(entry_name, type, type_len) == 0 &&
+            entry_name[type_len] == '_' &&
+            strcmp(entry_name + type_len + 1, sub_type) == 0) {
             return desc;
         }
     }

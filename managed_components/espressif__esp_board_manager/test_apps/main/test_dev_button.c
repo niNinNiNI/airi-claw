@@ -118,6 +118,28 @@ static int test_adc_button(void)
 }
 #endif  /* defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SINGLE_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_MULTI_SUPPORT) */
 
+#ifdef CONFIG_ESP_BOARD_DEV_BUTTON_SUB_CUSTOM_SUPPORT
+static int test_custom_button(void)
+{
+    ESP_LOGI(TAG, "=== Testing Custom Button ===");
+
+    dev_button_handles_t *btn_handles = NULL;
+    esp_err_t ret = esp_board_manager_get_device_handle("button_l", (void **)&btn_handles);
+    if (ret != ESP_OK || btn_handles == NULL) {
+        ESP_LOGE(TAG, "Failed to get button_l handle");
+        return -1;
+    }
+    ESP_LOGI(TAG, "Successfully obtained custom button handle");
+
+    ret = esp_board_device_callback_register("button_l", simple_button_event_handler, NULL);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to register callback for button: %s", "button_l");
+        return -1;
+    }
+    return 0;
+}
+#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUB_CUSTOM_SUPPORT */
+
 void test_dev_button(void)
 {
     int ret = -1;
@@ -125,6 +147,8 @@ void test_dev_button(void)
     ret = test_gpio_button();
 #elif defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SINGLE_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_MULTI_SUPPORT)
     ret = test_adc_button();
+#elif CONFIG_ESP_BOARD_DEV_BUTTON_SUB_CUSTOM_SUPPORT
+    ret = test_custom_button();
 #endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUB_GPIO_SUPPORT */
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed to test dev button");

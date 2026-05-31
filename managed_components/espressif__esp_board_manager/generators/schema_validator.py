@@ -172,7 +172,7 @@ class DeviceSchemaValidator(LoggerMixin):
         issues = []
         allowed_fields = {
             'name', 'type', 'sub_type', 'version', 'chip', 'config',
-            'peripherals', 'dependencies', 'init_skip', 'gen_skip', 'power_ctrl_device'
+            'peripherals', 'dependencies', 'depends_on', 'init_skip', 'gen_skip', 'power_ctrl_device'
         }
 
         for key in device_dict.keys():

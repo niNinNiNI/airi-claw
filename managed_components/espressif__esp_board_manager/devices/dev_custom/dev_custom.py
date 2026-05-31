@@ -67,6 +67,15 @@ def _get_struct_name(base_name: str, field_name: str) -> str:
     """Generate struct name for nested object"""
     return f'{base_name}_{_sanitize_field_name(field_name)}_t'
 
+def _strip_struct_suffix(name: str) -> str:
+    """Remove only the trailing struct suffix used for child struct prefixes."""
+    return name[:-2] if name.endswith('_t') else name
+
+def _strip_config_suffix(name: str) -> str:
+    """Remove only the trailing config suffix used for root struct prefixes."""
+    suffix = '_config_t'
+    return name[:-len(suffix)] if name.endswith(suffix) else name
+
 def _generate_struct_fields_recursive(name: str, config: Dict[str, Any], defined_structs: List[str]) -> Tuple[List[str], List[str]]:
     """
     Generate C struct field definitions and initialization values recursively
@@ -94,7 +103,7 @@ def _generate_struct_fields_recursive(name: str, config: Dict[str, Any], defined
             child_struct_name = _get_struct_name(name, key)
 
             # Recursively generate fields for this child struct
-            child_fields, _ = _generate_struct_fields_recursive(child_struct_name.replace('_t', ''), value, defined_structs)
+            child_fields, _ = _generate_struct_fields_recursive(_strip_struct_suffix(child_struct_name), value, defined_structs)
 
             # Define the child struct
             struct_def = f'typedef struct {{\n'
@@ -122,7 +131,7 @@ def _generate_struct_fields_recursive(name: str, config: Dict[str, Any], defined
                             # Optional: Check for type consistency? For now allow overwrite/first-found.
 
                 # Recursively generate fields using the merged config
-                child_fields, _ = _generate_struct_fields_recursive(child_struct_name.replace('_t', ''), merged_config, defined_structs)
+                child_fields, _ = _generate_struct_fields_recursive(_strip_struct_suffix(child_struct_name), merged_config, defined_structs)
 
                 # Define the child struct
                 struct_def = f'typedef struct {{\n'
@@ -250,7 +259,7 @@ def parse(name, config, peripherals_dict=None):
 
     # Generate struct fields for custom config (recursive)
     # We pass struct_name as base for naming sub-structs
-    custom_fields, _ = _generate_struct_fields_recursive(struct_name.replace('_config_t', ''), device_config, defined_structs)
+    custom_fields, _ = _generate_struct_fields_recursive(_strip_config_suffix(struct_name), device_config, defined_structs)
 
     # Generate struct fields for peripherals
     periph_fields, _ = _generate_peripheral_fields(peripherals_list)

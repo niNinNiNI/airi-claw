@@ -103,4 +103,4 @@ int dev_fs_fat_sub_spi_deinit(void *device_handle)
     return 0;
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(spi, dev_fs_fat_sub_spi_init, dev_fs_fat_sub_spi_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(fs_fat, spi, dev_fs_fat_sub_spi_init, dev_fs_fat_sub_spi_deinit);

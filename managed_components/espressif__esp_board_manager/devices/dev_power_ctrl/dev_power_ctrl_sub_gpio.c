@@ -94,5 +94,5 @@ int dev_power_ctrl_sub_gpio_deinit(void *device_handle)
     return 0;
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(gpio, dev_power_ctrl_sub_gpio_init, dev_power_ctrl_sub_gpio_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(power_ctrl, gpio, dev_power_ctrl_sub_gpio_init, dev_power_ctrl_sub_gpio_deinit);
 DEVICE_EXTRA_FUNC_REGISTER(gpio_power_ctrl, dev_power_ctrl_sub_gpio_power_control);

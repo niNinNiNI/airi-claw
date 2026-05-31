@@ -614,7 +614,12 @@ class BoardCreator(LoggerMixin):
             return
 
         # Deprecated device types to exclude
-        excluded_devices = {'dev_fatfs_sdcard_spi', 'dev_fatfs_sdcard', 'dev_display_lcd_spi'}
+        excluded_devices = {
+            'dev_fatfs_sdcard_spi',
+            'dev_fatfs_sdcard',
+            'dev_display_lcd_spi',
+            'dev_lcd_touch_i2c',
+        }
 
         # Use temporary sets to avoid duplicate option keys
         option_key_set = set()

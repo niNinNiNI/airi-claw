@@ -170,14 +170,15 @@ devices:
        version: <version>
        sub_type: <sub_type>   # Optional: sub-device type string, each device may have its own sub-type or none
        init_skip: false  # Optional: skip automatic initialization (default: false)
-       dependencies:     # Optional, define component dependencies
+       dependencies:     # Optional: define component dependencies
          espressif/gmf_core:
             version: '*'  # Version from the Espressif component registry (IDF Component Manager), not YAML schema; see §3
             override_path: ${BOARD_PATH}/gmf_core
-            # Optional: allows you to use a local component instead of the version downloaded from the component registry.
+            # Optional: allows you to use a local component instead of the version downloaded from the component registry
             # You can specify:
             #   - Absolute path, or
             #   - Relative path under ${BOARD_PATH} for easier management
+       depends_on: <device_name>  # Optional: Used to declare other devices that the current device depends on
        config:
          # Device-specific configuration
          sub_config:      # Optional: provide sub-configuration if sub_type exists
@@ -197,6 +198,35 @@ devices:
 > - `${BOARD_PATH}` is a special variable that always points to the root directory of the current board definition (i.e., the folder containing your `board_devices.yaml`).
 > - When specifying local or board-specific component paths in the `override_path` or `path` fields, always use `${BOARD_PATH}`. For more details, refer to [Local Directory Dependencies](https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html#local-directory-dependencies).
 > - ❌ **Incorrect**: `{{BOARD_PATH}}` or `$BOARD_PATH`
+
+### Device Dependencies (`depends_on`)
+
+An optional list (or single string) of other devices that must be initialized before this device. Board Manager initializes dependencies first, deinitializes them last, and keeps a shared dependency alive while any active dependent still uses it.
+
+```yaml
+devices:
+  - name: io_expander_aw9523
+    type: gpio_expander
+    # ... config ...
+
+  - name: display_lcd
+    type: display_lcd
+    sub_type: i80
+    depends_on:
+      - io_expander_aw9523    # init expander before LCD; release it after the LCD is deinitialized
+    # ... config ...
+
+  - name: button_power
+    type: button
+    sub_type: custom
+    depends_on: io_expander_aw9523    # single dependency may be written as a string
+```
+
+Semantics:
+
+- During `esp_board_manager_init()` (and `esp_board_device_init(name)`), each entry of `depends_on` is initialized first. If any dependency fails, the partially initialized chain is rolled back automatically.
+- During deinit, a device cannot be torn down while any other active device still lists it in `depends_on`; the runtime returns `ESP_BOARD_ERR_DEVICE_DEP_IN_USE` in that case.
+- Cyclic `depends_on` chains are detected by the parser at generation time and reported as a configuration error.
 
 ### 5. **Board-Specific SDK Configuration (Optional)**
 
@@ -236,7 +266,7 @@ To support flexible board adaptation, the board directory allows you to provide 
 - Override or extend the default device initialization behavior when necessary
 
 For concrete examples of how this is done, see:
-[setup_device.c](esp_board_manager/boards/esp_vocat_board_v1_2/setup_device.c), which implements specific initialization flows for display_lcd and lcd_touch devices
+[setup_device.c](../boards/esp_vocat_board_v1_2/setup_device.c), which implements specific initialization flows for display_lcd and lcd_touch devices
 
 ### 7. Locally amending an existing board with `-a/--amend`
 

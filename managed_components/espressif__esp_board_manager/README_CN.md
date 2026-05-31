@@ -66,6 +66,12 @@ pip install esp-bmgr-assist
 pip install --upgrade esp-bmgr-assist
 ```
 
+如果访问 PyPI 较慢，可以使用清华 PyPI 镜像：
+
+```bash
+pip install esp-bmgr-assist -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
 工具链接：[`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/)
 
 > **注意:** `esp-bmgr-assist` 仅用于免去手动配置 `IDF_EXTRA_ACTIONS_PATH`。您仍需要继续阅读本文档，按下面的步骤给工程添加 `esp_board_manager` 依赖，了解 Board Manager 的基本命令用法。
@@ -258,7 +264,7 @@ void app_main(void)
         ESP_LOGE(TAG, "Failed to initialize board manager");
         return;
     }
-    // 获取设备句柄，根据 esp_board_manager/boards/YOUR_TARGET_BOARD/board_devices.yaml 中的设备命名获取句柄
+    // 获取设备句柄，根据所选板子 board_devices.yaml 中的设备命名获取句柄
     dev_display_lcd_handles_t *lcd_handle;
     ret = esp_board_manager_get_device_handle("display_lcd", &lcd_handle);
     if (ret != ESP_OK) {
@@ -273,7 +279,7 @@ void app_main(void)
             ESP_LOGW(TAG, "Touch device exists but handle is unavailable");
         }
     }
-    // 获取设备配置，根据 esp_board_manager/boards/YOUR_TARGET_BOARD/board_devices.yaml 中的设备命名获取设备配置
+    // 获取设备配置，根据所选板子 board_devices.yaml 中的设备命名获取设备配置
     dev_audio_codec_config_t *device_config;
     ret = esp_board_manager_get_device_config("audio_dac", &device_config);
     if (ret != ESP_OK) {
@@ -300,6 +306,7 @@ void app_main(void)
 | [`ESP VoCat Board V1.2`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32s3/esp-vocat/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - | - |
 | Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (双) | - | - | - | - |
 | [`ESP-BOX-3`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_3/hardware_overview_for_box_3_cn.md) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ GT911/TT21100 自动探测 | - | - | - |
+| ESP32-S3 BOX2 | ESP32-S3 | ✅ ES8389 | ✅ SPI | ✅ ST7789 (I80) | - | - | ✅ 自定义按键 | - |
 | ESP-HI | ESP32-C3 | ✅ 内置 ADC + PDM 扬声器 | - | ✅ ILI9341 | - | - | ✅ GPIO 按键 | - |
 | ESP32-C3 Lyra | ESP32-C3 | ✅ 内置 ADC + PDM 扬声器 | - | - | - | - | - | - |
 | [`ESP32-S3 Korvo2 V3`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100/GT911 自动探测 | ✅ DVP Camera | ✅ ADC button | - |
@@ -308,8 +315,9 @@ void app_main(void)
 | [`Lyrat Mini V1.1`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/get-started-esp32-lyrat-mini.html) | ESP32 | ✅ ES8388 | ✅ SDMMC | - | - | - | ✅ ADC button | - |
 | [`ESP32-C5 Spot`](https://oshwhub.com/esp-college/esp-spot) | ESP32-C5 | ✅ ES8311 (双) | - | - | - | - | - | - |
 | [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ✅ CSI Camera | - | - |
+| [`ESP32-P4-EYE`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32p4/esp32-p4-eye/user_guide.html) | ESP32-P4 | ✅ PDM 麦克风 | ✅ SDMMC | ✅ ST7789 (SPI) | - | ✅ CSI Camera | ✅ GPIO 按键 | - |
 | [`M5STACK CORES3`](https://docs.m5stack.com/zh_CN/core/CoreS3) | ESP32-S3 | ✅ AW88298 + ES7210 | ✅ SDSPI | ✅ ILI9342C | ✅ FT5x06 | ❌ | - | - |
-| [`M5STACK TAB5`](https://docs.m5stack.com/zh_CN/core/Tab5) | ESP32-P4 | ✅ ES8388 + ES7210 | ✅ SDMMC | ✅ ILI9881C | ✅ GT911 | SC202CS | - | - |
+| [`M5STACK TAB5`](https://docs.m5stack.com/zh_CN/core/Tab5) | ESP32-P4 | ✅ ES8388 + ES7210 | ✅ SDMMC | ✅ ILI9881C/ST7123 自动探测 | ✅ GT911/ST7123 自动探测 | ✅ SC202CS | - | - |
 | [`ESP-BOX-LITE`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_lite/hardware_overview_for_lite.md) | ESP32-S3 | ✅ ES8156 + ES7243E | - | ✅ ST7789 | - | - | - | - |
 
 注：'✅' 表示已经支持，'❌' 表示尚未支持，'-' 表示硬件不具备相应的能力
@@ -319,15 +327,16 @@ void app_main(void)
 | 设备名称 | 描述 | 类型 | 子类型 | 外设 | 参考 YAML | 示例 |
 |---|---|---|---|---|---|---|
 | `audio_dac`<br/>`audio_adc` | 音频编解码器 | audio_codec | - | i2s<br/>i2c | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) | **[`test_dev_audio_codec.c`](test_apps/main/test_dev_audio_codec.c)** <br/>带有 DAC/ADC、SD 卡播放、录音和回环测试的音频编解码器 |
-| `display_lcd` | LCD 显示设备 | display_lcd | spi<br/>dsi<br/>rgb | spi<br/>dsi | [`dev_display_lcd.yaml`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
+| `display_lcd` | LCD 显示设备 | display_lcd | dsi<br/>spi<br/>parlio<br/>rgb<br/>rgb_3wire_spi<br/>i80 | dsi<br/>spi | [`dev_display_lcd.yaml`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
 | `fs_fat` | FAT 文件系统设备 | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat.yaml`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fs_fat.c`](test_apps/main/test_dev_fs_fat.c)** <br/>SD 卡操作和 FATFS 文件系统测试 |
 | `fs_spiffs` | SPIFFS 文件系统设备 | fs_spiffs | - | - | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) | **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** <br/>SPIFFS 文件系统测试 |
 | `lcd_touch` | 触摸屏 | lcd_touch | i2c | i2c | [`dev_lcd_touch.yaml`](devices/dev_lcd_touch/dev_lcd_touch.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
-| `sdcard_power_ctrl` | 电源控制设备 | power_ctrl | gpio | gpio | [`dev_power_ctrl.yaml`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
+| `power_ctrl` | 电源控制设备 | power_ctrl | gpio | gpio | [`dev_power_ctrl.yaml`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
+| `gpio_ctrl` | GPIO 控制设备 | gpio_ctrl | - | gpio | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) | - |
 | `lcd_brightness` | LEDC 控制设备 | ledc_ctrl | - | ledc | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) | **[`test_dev_ledc.c`](test_apps/main/test_dev_ledc.c)** <br/>用于 PWM 和背光控制的 LEDC 设备 |
 | `gpio_expander` | GPIO 扩展芯片 | gpio_expander | - | i2c | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) | **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)**<br/>GPIO 扩展芯片测试 |
 | `camera` | 摄像头 | camera | dvp<br/>csi | i2c<br/>ldo | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) | **[`test_dev_camera.c`](test_apps/main/test_dev_camera.c)** <br/>测试 Camera sensor 的视频流捕获能力 |
-| `button` | 按键 | button | gpio<br/>adc | gpio<br/>adc | [`dev_button.yaml`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>按钮测试 |
+| `button` | 按键 | button | gpio<br/>adc_single<br/>adc_multi<br/>custom | gpio<br/>adc | [`dev_button.yaml`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>按钮测试 |
 | `led_strip` | LED 灯带 | led_strip | rmt<br/>spi | - | [`dev_led_strip.yaml`](devices/dev_led_strip/dev_led_strip.yaml) | **[`test_dev_led_strip.c`](test_apps/main/test_dev_led_strip.c)** <br/>LED 灯带初始化和控制测试 |
 
 > 对于同一种设备，我们将不再使用接口类型来区分类型。例如，`dev_fatfs_sdcard` 和 `dev_fatfs_sdcard_spi` 将统一使用 `fs_fat` 进行管理，`dev_display_lcd_spi` 也将改为使用 `dev_display_lcd` 进行管理。

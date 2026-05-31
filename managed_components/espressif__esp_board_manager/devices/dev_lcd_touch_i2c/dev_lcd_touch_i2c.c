@@ -67,6 +67,7 @@ int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle)
 #endif  /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) */
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create LCD panel IO for touch, i2c addr: %" PRIx32, io_i2c_config.dev_addr);
+        esp_board_periph_unref_handle(touch_cfg->i2c_name);
         free(touch_handles);
         return -1;
     }
@@ -84,8 +85,9 @@ int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle)
 
     ret = lcd_touch_factory_entry_t(touch_handles->io_handle, &touch_cfg->touch_config, &touch_handles->touch_handle);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to create CST816S touch driver: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to create lcd touch driver: %s", esp_err_to_name(ret));
         esp_lcd_panel_io_del(touch_handles->io_handle);
+        esp_board_periph_unref_handle(touch_cfg->i2c_name);
         free(touch_handles);
         return -1;
     }

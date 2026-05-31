@@ -49,11 +49,14 @@ devices:
   - [Recording (ADC, `adc_enabled: true`)](#recording-adc-adc_enabled-true)
   - [Full-Duplex (Same Codec Chip)](#full-duplex-same-codec-chip)
   - [Recording and Playback without External Codec](#recording-and-playback-without-external-codec)
+  - [PDM Digital Microphone](#pdm-digital-microphone)
+  - [PDM Speaker](#pdm-speaker)
   - [I2S Advanced Configuration](#i2s-advanced-configuration)
 - [LCD (`display_lcd`)](#lcd-display_lcd)
   - [DSI (`sub_type: dsi`)](#dsi-sub_type-dsi)
   - [SPI (`sub_type: spi`)](#spi-sub_type-spi)
   - [PARLIO (`sub_type: parlio`)](#parlio-sub_type-parlio)
+  - [I80 (`sub_type: i80`)](#i80-sub_type-i80)
 - [LEDC Backlight (`ledc_ctrl`)](#ledc-backlight-ledc_ctrl)
 - [LCD Touch (`lcd_touch_i2c`)](#lcd-touch-lcd_touch_i2c)
 - [Camera (`camera`)](#camera-camera)
@@ -193,13 +196,174 @@ If the board has no PA control pin, there is no need to add the `gpio_pa_control
 ### Full-Duplex (Same Codec Chip)
 
 Configure **two** `type: audio_codec` devices in `board_devices.yaml` (e.g. `audio_dac` + `audio_adc`), enabling only DAC or only ADC respectively. **I2C control** can point to the same `i2c_master` (you may use YAML `&` / `*` anchors to avoid duplicating `address` / `frequency`).
-**Board Reference**: [esp32_s3_korvo2l/board_devices.yaml](../boards/esp32_s3_korvo2l/board_devices.yaml).
+**Board Reference**: [esp32_s3_korvo_2l/board_devices.yaml](../boards/esp32_s3_korvo2l/board_devices.yaml).
 
 ### Recording and Playback without External Codec
 
-The two examples above focus on **external Codec + I2S**. If no codec chip is needed and you want to use **internal ADC for audio capture** or **PDM speaker** mode, refer to the **ADC Mic Usage Mode** in [dev_audio_codec.yaml](../devices/dev_audio_codec/dev_audio_codec.yaml);
+When `chip` is set to `internal`, `audio_codec` does not initialize an external codec chip through `esp_codec_dev`. This is suitable for boards without an external codec chip, or for codec chips that do not require I2C software configuration. This section shows two internal ADC microphone configuration styles. For direct PDM speaker output, see [PDM Speaker](#pdm-speaker).
 
-**Board Reference**: [esp32_c3_lyra/board_devices.yaml](../boards/esp32_c3_lyra/board_devices.yaml), [esp32_c3_lyra/board_peripherals.yaml](../boards/esp32_c3_lyra/board_peripherals.yaml) (using `adc` peripheral or `adc_local_cfg`).
+**Board Reference**: [esp32_c3_lyra/board_devices.yaml](../boards/esp32_c3_lyra/board_devices.yaml), [esp32_c3_lyra/board_peripherals.yaml](../boards/esp32_c3_lyra/board_peripherals.yaml)
+
+**Reuse an `adc` peripheral**
+
+Declare the `adc` peripheral in `board_peripherals.yaml`, then reference it from the device:
+
+**`board_peripherals.yaml`**:
+
+```yaml
+  - name: adc_audio_in
+    type: adc
+    role: continuous
+    config:
+      unit_id: ADC_UNIT_1               # [TO_BE_CONFIRMED] ADC unit
+      atten: ADC_ATTEN_DB_12            # [TO_BE_CONFIRMED] Attenuation
+      bit_width: ADC_BITWIDTH_12        # [TO_BE_CONFIRMED] Sample bit width
+      max_store_buf_size: 1024          # [TO_BE_CONFIRMED] Store buffer size in bytes
+      conv_frame_size: 256              # [TO_BE_CONFIRMED] Conversion frame size in bytes
+      format: ADC_DIGI_OUTPUT_FORMAT_TYPE2  # [TO_BE_CONFIRMED]
+      conv_mode: ADC_CONV_SINGLE_UNIT_1     # [TO_BE_CONFIRMED]
+      channel_list: [0]                 # [TO_BE_CONFIRMED] ADC channel list
+```
+
+**`board_devices.yaml`**:
+
+```yaml
+  - name: audio_adc
+    chip: internal
+    type: audio_codec
+    config:
+      adc_enabled: true
+      dac_enabled: false
+    peripherals:
+      - name: adc_audio_in
+```
+
+**Local ADC configuration (`adc_local_cfg`)**
+
+No separate `adc` peripheral is needed. The `audio_codec` device creates the ADC continuous handle internally:
+
+**`board_devices.yaml`** (no `board_peripherals.yaml` entry required):
+
+```yaml
+  - name: audio_adc
+    chip: internal
+    type: audio_codec
+    config:
+      adc_enabled: true
+      dac_enabled: false
+      adc_local_cfg:
+        channel_list: [0]               # [TO_BE_CONFIRMED] ADC channel list
+        sample_rate_hz: 16000           # [TO_BE_CONFIRMED] Sample rate in Hz
+        max_store_buf_size: 1024        # [TO_BE_CONFIRMED]
+        conv_frame_size: 256            # [TO_BE_CONFIRMED]
+        unit_id: ADC_UNIT_1             # [TO_BE_CONFIRMED]
+        atten: ADC_ATTEN_DB_12          # [TO_BE_CONFIRMED]
+        bit_width: SOC_ADC_DIGI_MAX_BITWIDTH  # [TO_BE_CONFIRMED]
+```
+
+### PDM Digital Microphone
+
+A PDM digital microphone connects directly to the SoC through the I2S PDM interface. It does not require an external codec chip or an I2C control interface. Set the I2S peripheral `format` to `pdm-in`, and set the device `chip` to `internal`. PDM RX mode does not use `bclk` or `ws`; it only needs `clk` and `din`.
+
+**Board Reference**: [esp32_p4_eye/board_peripherals.yaml](../boards/esp32_p4_eye/board_peripherals.yaml), [esp32_p4_eye/board_devices.yaml](../boards/esp32_p4_eye/board_devices.yaml)
+
+**`board_peripherals.yaml`**:
+
+```yaml
+  - name: i2s_audio_in
+    type: i2s
+    role: master
+    format: pdm-in
+    config:
+      port: 0
+      sample_rate_hz: 16000             # [TO_BE_CONFIRMED] Sample rate in Hz
+      data_bit_width: 16                # [TO_BE_CONFIRMED] Data bit width
+      slot_mode: I2S_SLOT_MODE_MONO     # [TO_BE_CONFIRMED] Mono/stereo slot mode
+      # Valid values: I2S_SLOT_MODE_MONO / I2S_SLOT_MODE_STEREO
+      slot_mask: I2S_PDM_SLOT_LEFT      # [TO_BE_CONFIRMED] PDM slot selection
+      # Valid values: I2S_PDM_SLOT_LEFT / I2S_PDM_SLOT_RIGHT / I2S_PDM_SLOT_BOTH
+      dn_sample_mode: I2S_PDM_DSR_8S    # [TO_BE_CONFIRMED] Down-sampling mode
+      # Valid values: I2S_PDM_DSR_8S / I2S_PDM_DSR_16S
+      hp_en: true                       # [TO_BE_CONFIRMED] Enable high-pass filter
+      hp_cut_off_freq_hz: 35.5          # [TO_BE_CONFIRMED] High-pass cutoff frequency in Hz
+      amplify_num: 1                    # [TO_BE_CONFIRMED] Amplification factor
+      pins:
+        clk: 22                         # [IO] PDM CLK pin
+        din: 21                         # [IO] PDM DIN pin
+```
+
+**`board_devices.yaml`**:
+
+```yaml
+  - name: audio_adc
+    chip: internal
+    type: audio_codec
+    # power_ctrl_device: mic_power_ctrl   # Optional: microphone power control device name
+    config:
+      adc_enabled: true
+      dac_enabled: false
+      adc_max_channel: 1                  # [TO_BE_CONFIRMED] Maximum microphone channels
+      adc_channel_mask: "1"               # [TO_BE_CONFIRMED] Channel bit mask ("1" means channel 0)
+      adc_init_gain: 0                    # [TO_BE_CONFIRMED] Initial gain in dB, supports 0 / 6 / 18 / 30
+    peripherals:
+      - name: i2s_audio_in
+```
+
+### PDM Speaker
+
+I2S PDM output can directly drive a PDM speaker or PDM amplifier without an external codec chip. Set the I2S peripheral `format` to `pdm-out`, and set the device `chip` to `internal`. PDM TX mode only requires `dout`; `clk` depends on the hardware design and can be set to `-1` when unused.
+
+**Board Reference**: [esp32_c3_lyra/board_peripherals.yaml](../boards/esp32_c3_lyra/board_peripherals.yaml), [esp32_c3_lyra/board_devices.yaml](../boards/esp32_c3_lyra/board_devices.yaml)
+
+**`board_peripherals.yaml`**:
+
+```yaml
+  - name: i2s_audio_out
+    type: i2s
+    role: master
+    format: pdm-out
+    config:
+      sample_rate_hz: 16000             # [TO_BE_CONFIRMED] Sample rate in Hz
+      data_bit_width: 16                # [TO_BE_CONFIRMED] Data bit width
+      slot_mode: I2S_SLOT_MODE_MONO     # [TO_BE_CONFIRMED] Mono/stereo slot mode
+      # Valid values: I2S_SLOT_MODE_MONO / I2S_SLOT_MODE_STEREO
+      slot_mask: I2S_PDM_SLOT_LEFT      # [TO_BE_CONFIRMED] PDM slot selection
+      # Valid values: I2S_PDM_SLOT_LEFT / I2S_PDM_SLOT_RIGHT / I2S_PDM_SLOT_BOTH
+      line_mode: I2S_PDM_TX_ONE_LINE_CODEC  # [TO_BE_CONFIRMED] One-line/two-line output mode
+      # Valid values: I2S_PDM_TX_ONE_LINE_CODEC / I2S_PDM_TX_ONE_LINE_DAC / I2S_PDM_TX_TWO_LINE_DAC
+      up_sample_fp: 960                 # [TO_BE_CONFIRMED] Upsampling fp parameter
+      up_sample_fs: 441                 # [TO_BE_CONFIRMED] Upsampling fs parameter
+      sd_prescale: 0                    # [TO_BE_CONFIRMED]
+      sd_scale: I2S_PDM_SIG_SCALING_MUL_4   # [TO_BE_CONFIRMED] Sigma-delta scaling
+      hp_scale: I2S_PDM_SIG_SCALING_MUL_4   # [TO_BE_CONFIRMED]
+      lp_scale: I2S_PDM_SIG_SCALING_MUL_4   # [TO_BE_CONFIRMED]
+      sinc_scale: I2S_PDM_SIG_SCALING_MUL_4 # [TO_BE_CONFIRMED]
+      hp_en: false                      # [TO_BE_CONFIRMED] Enable high-pass filter
+      hp_cut_off_freq_hz: 35.5          # [TO_BE_CONFIRMED] High-pass cutoff frequency in Hz
+      sd_dither: 0                      # [TO_BE_CONFIRMED]
+      sd_dither2: 1                     # [TO_BE_CONFIRMED]
+      pins:
+        clk: -1                         # [IO] PDM CLK pin (-1 means unused)
+        dout: 3                         # [IO] PDM data output pin
+```
+
+**`board_devices.yaml`**:
+
+```yaml
+  - name: audio_dac
+    chip: internal
+    type: audio_codec
+    config:
+      dac_enabled: true
+      adc_enabled: false
+    peripherals:
+      - name: i2s_audio_out
+      - name: gpio_pa_control           # Optional: PA control pin
+        gain: 6                         # [TO_BE_CONFIRMED] PA gain in dB
+        active_level: 1                 # PA control active level
+```
+
+If the speaker has a PA control pin, define an additional `gpio_pa_control` peripheral (`type: gpio`) in `board_peripherals.yaml`. See [esp32_c3_lyra/board_peripherals.yaml](../boards/esp32_c3_lyra/board_peripherals.yaml) for reference.
 
 ### I2S Advanced Configuration
 
@@ -377,6 +541,55 @@ PARLIO LCD does not require explicit peripheral dependencies.
         data_endian: LCD_RGB_DATA_ENDIAN_LITTLE   # [TO_BE_CONFIRMED] Data endianness (default: LITTLE)
         bits_per_pixel: 16                        # [TO_BE_CONFIRMED] Bits per pixel (default: 16)
 ```
+
+---
+
+### I80 (`sub_type: i80`)
+
+I80 LCD uses the dedicated Intel 8080 parallel LCD peripheral and does not require an external bus peripheral entry; the I80 bus is configured directly in the device `bus_config` block.
+
+**`board_devices.yaml`**
+
+```yaml
+  - name: display_lcd
+    type: display_lcd
+    sub_type: i80
+    chip: st7789                                # [TO_BE_CONFIRMED] must match lcd_panel_factory_entry_t + driver
+    dependencies:
+      espressif/esp_lcd_st7789: "*"             # [TO_BE_CONFIRMED]
+    config:
+      x_max: 240                                # [TO_BE_CONFIRMED] Horizontal resolution
+      y_max: 280                                # [TO_BE_CONFIRMED] Vertical resolution
+      invert_color: true                        # Invert color flag (default: true)
+      need_reset: true                          # Reset panel during init (default: true)
+
+      # esp_lcd_i80_bus_config_t fields
+      bus_config:
+        dc_gpio_num: -1                         # [IO] GPIO used for D/C line
+        wr_gpio_num: -1                         # [IO] GPIO used for WR line
+        clk_src: 0                              # Clock source (default: 0)
+        data_gpio_nums: []                      # [IO] GPIOs used for data lines (D0-D7 for 8-bit, D0-D15 for 16-bit)
+        bus_width: 8                            # [TO_BE_CONFIRMED] Number of data lines, 8 or 16 (default: 8)
+        max_transfer_bytes: 4092                # [TO_BE_CONFIRMED] Maximum transfer size (default: 4092)
+        dma_burst_size: 64                      # DMA burst size in bytes (default: 64)
+
+      # esp_lcd_panel_io_i80_config_t fields
+      io_config:
+        cs_gpio_num: -1                         # [IO] GPIO used for CS line (-1 if exclusive bus)
+        pclk_hz: 10000000                       # [TO_BE_CONFIRMED] Pixel clock frequency (default: 10MHz)
+        trans_queue_depth: 10                   # Transaction queue size (default: 10)
+        lcd_cmd_bits: 8                         # Bit-width of LCD command (default: 8)
+        lcd_param_bits: 8                       # Bit-width of LCD parameter (default: 8)
+
+      # esp_lcd_panel_dev_config_t fields
+      panel_config:
+        reset_gpio_num: -1                        # [IO] Reset GPIO pin (default: -1)
+        rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB  # [TO_BE_CONFIRMED] RGB element order (default: RGB)
+        data_endian: LCD_RGB_DATA_ENDIAN_BIG      # [TO_BE_CONFIRMED] Data endianness (default: BIG)
+        bits_per_pixel: 16                        # [TO_BE_CONFIRMED] Bits per pixel (default: 16)
+```
+
+The full set of fields is in [`dev_display_lcd.yaml`](../devices/dev_display_lcd/dev_display_lcd.yaml).
 
 ---
 

@@ -3,6 +3,7 @@ devices:
   - name: audio_dac
     chip: es8388
     type: audio_codec
+    depends_on: gpio_expander
     version: default
     config:
       adc_enabled: false
@@ -104,11 +105,13 @@ devices:
 
   # DSI Display Device
   - name: display_lcd
-    chip: ili9881c
+    chip: tab5_lcd                    # aggregate chip; real driver picked at runtime
     type: display_lcd
+    depends_on: [gpio_expander, lcd_touch]
     sub_type: dsi
     dependencies:
       espressif/esp_lcd_ili9881c: "*"
+      espressif/esp_lcd_st7123: "*"
     config:
       reset_gpio_num: -1
       rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB
@@ -122,7 +125,7 @@ devices:
       dpi_config:
         virtual_channel: 0
         dpi_clk_src: MIPI_DSI_DPI_CLK_SRC_DEFAULT
-        dpi_clock_freq_mhz: 60
+        dpi_clock_freq_mhz: 80         # base; setup_device.c may override per panel
         # pixel_format: LCD_COLOR_PIXEL_FORMAT_RGB565
         in_color_format: LCD_COLOR_FMT_RGB565
         # out_color_format: LCD_COLOR_FMT_RGB565
@@ -153,13 +156,15 @@ devices:
 
   # Touch Panel Configuration
   - name: lcd_touch
-    chip: gt911
+    chip: tab5_touch                  # aggregate chip; bmgr probes both addresses
     type: lcd_touch
     sub_type: i2c
+    depends_on: gpio_expander
     power_ctrl_device: touch_power_ctrl
     version: default
     dependencies:
       espressif/esp_lcd_touch_gt911: "*"
+      espressif/esp_lcd_touch_st7123: "*"
     config:
       # esp_lcd_panel_io_i2c_config_t fields for touch communication
       io_i2c_config:
@@ -170,10 +175,11 @@ devices:
         y_max: 1280                        # Maximum Y coordinate (BSP_LCD_V_RES)
     peripherals:
       - name: i2c_master                   # I2C peripheral for touch communication
-        i2c_addr: [0x28]                   # GT911 8-bit I2C address, from 7-bit 0x14
+        i2c_addr: [0x28, 0xaa]             # 0x28=GT911(7b 0x14), 0xaa=ST7123(7b 0x55)
 
   - name: camera
     type: camera
+    depends_on: gpio_expander
     version: default
     sub_type: "csi"   # The bus type: csi
     config:

@@ -134,6 +134,7 @@ class DeviceParser(LoggerMixin):
         # Process devices
         result_devices = []
         device_types = []
+        seen_names = set()
 
         for i, dev in enumerate(devices):
             try:
@@ -154,6 +155,15 @@ class DeviceParser(LoggerMixin):
                 if dev.get('gen_skip', False):
                     self.logger.info(f"⏭️  Skipping device '{dev['name']}' (gen_skip=True)")
                     continue
+
+                name = dev['name']
+                if name in seen_names:
+                    raise BoardConfigYamlError(
+                        yaml_path,
+                        BoardConfigYamlError.REASON_NOT_A_MAPPING,
+                        f"duplicate device name '{name}' at devices[{i}]",
+                    )
+                seen_names.add(name)
 
                 # Validate peripheral references
                 if 'peripherals' in dev:
@@ -232,6 +242,8 @@ class DeviceParser(LoggerMixin):
                 result_devices.append(dev)
                 device_types.append(dev['type'])
 
+            except BoardConfigYamlError:
+                raise
             except ValueError as e:
                 # Re-raise ValueError to stop the generation process
                 raise
@@ -269,6 +281,7 @@ class DeviceParser(LoggerMixin):
             sub_type: str = None  # Optional sub_type for devices that support it
             power_ctrl_device: str = None  # Optional power control device reference
             version: str = None  # Optional Board Manager schema generation tag
+            depends_on: list = None  # Optional list of devices this device depends on
 
         # Load YAML with includes; empty merged file / missing devices / devices: [] are valid.
         data = self._load_yaml_with_includes(yaml_path, amend_plan) or {}
@@ -289,6 +302,7 @@ class DeviceParser(LoggerMixin):
             )
 
         result_devices = []
+        seen_names = set()
         for i, dev in enumerate(devices):
             try:
                 # Check if generation should be skipped for this device
@@ -301,6 +315,14 @@ class DeviceParser(LoggerMixin):
                     self.logger.error(f'Device missing name! Path: {yaml_path}')
                     self.logger.info(f'Device #{i+1}: {dev}. Missing field: name. Each device must have a name field')
                     continue
+
+                if name in seen_names:
+                    raise BoardConfigYamlError(
+                        yaml_path,
+                        BoardConfigYamlError.REASON_NOT_A_MAPPING,
+                        f"duplicate device name '{name}' at devices[{i}]",
+                    )
+                seen_names.add(name)
 
                 if 'version' in dev:
                     warn_if_invalid_board_yaml_schema_version(
@@ -346,13 +368,19 @@ class DeviceParser(LoggerMixin):
                         raise
                     except Exception as e:
                         self.logger.error(f'Invalid peripheral reference! Path: {yaml_path}')
-                        self.logger.info(f"Device '{name}', Peripheral #{j+1}: {p}. Error: {e}")
+                        self.logger.info(f'Device \'{name}\', Peripheral #{j+1}: {p}. Error: {e}')
                         continue
 
                 # Validate top-level device fields
                 issues = self.schema_validator.validate_device_fields(dev, name)
                 for issue in issues:
                     self.logger.warning(self.schema_validator.format_issue(issue))
+
+                depends_on_list = dev.get('depends_on', [])
+                if isinstance(depends_on_list, str):
+                    depends_on_list = [depends_on_list]
+                elif isinstance(depends_on_list, dict):
+                    depends_on_list = list(depends_on_list.keys())
 
                 # Validate device configuration against schema
                 if 'config' in dev and isinstance(dev['config'], dict):
@@ -376,9 +404,12 @@ class DeviceParser(LoggerMixin):
                     init_skip=dev.get('init_skip', False),  # Default to False (do not skip initialization)
                     sub_type=dev.get('sub_type', None),  # Extract sub_type if present
                     power_ctrl_device=dev.get('power_ctrl_device', None),  # Extract power_ctrl_device if present
-                    version=str(dev.get('version')) if dev.get('version') is not None else None  # Extract schema version if present
+                    version=str(dev.get('version')) if dev.get('version') is not None else None,  # Extract schema version if present
+                    depends_on=depends_on_list if depends_on_list else None
                 ))
 
+            except BoardConfigYamlError:
+                raise
             except ValueError as e:
                 # Re-raise ValueError to stop the generation process
                 raise
@@ -388,7 +419,70 @@ class DeviceParser(LoggerMixin):
                 continue
 
         self.logger.debug(f'   Loaded {len(result_devices)} devices from {yaml_path}')
+
+        # Validate that dependencies reference existing devices
+        if not self._validate_missing_dependencies(result_devices, yaml_path):
+            if stop_on_error:
+                raise ValueError(f'Unknown depends_on device in {yaml_path}')
+            return []
+
+        # Validate circular dependencies
+        if not self._validate_circular_dependencies(result_devices, yaml_path):
+            if stop_on_error:
+                raise ValueError(f'Circular dependency detected in {yaml_path}')
+            return []
+
         return result_devices
+
+    def _validate_missing_dependencies(self, devices: List[Any], yaml_path: str) -> bool:
+        """Check that every depends_on entry references a device in this board."""
+        device_names = {dev.name for dev in devices}
+        valid = True
+
+        for dev in devices:
+            for dep in dev.depends_on or []:
+                if dep not in device_names:
+                    self.logger.error(f'Unknown depends_on device! Path: {yaml_path}')
+                    self.logger.error(f"Device '{dev.name}' depends_on '{dep}', but '{dep}' is not defined")
+                    valid = False
+
+        return valid
+
+    def _validate_circular_dependencies(self, devices: List[Any], yaml_path: str) -> bool:
+        """Check for circular dependencies among devices using DFS."""
+        graph = {}
+        for dev in devices:
+            graph[dev.name] = dev.depends_on if dev.depends_on else []
+
+        visited = set()
+        rec_stack = set()
+
+        def is_cyclic(node, path):
+            visited.add(node)
+            rec_stack.add(node)
+            path.append(node)
+
+            for neighbor in graph.get(node, []):
+                if neighbor not in visited:
+                    if is_cyclic(neighbor, path):
+                        return True
+                elif neighbor in rec_stack:
+                    path.append(neighbor)
+                    cycle_path = ' -> '.join(path[path.index(neighbor):])
+                    self.logger.error(f'Circular dependency detected! Path: {yaml_path}')
+                    self.logger.error(f'Cycle: {cycle_path}')
+                    return True
+
+            rec_stack.remove(node)
+            path.pop()
+            return False
+
+        for dev in devices:
+            if dev.name not in visited:
+                if is_cyclic(dev.name, []):
+                    return False
+
+        return True
 
     def _load_yaml_with_includes(self, yaml_path: str, amend_plan: Optional['AmendPlan'] = None) -> dict:
         """Load YAML file with support for cross-file references and includes"""

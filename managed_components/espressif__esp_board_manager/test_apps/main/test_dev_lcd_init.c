@@ -178,6 +178,7 @@ esp_err_t test_dev_lcd_lvgl_init(void)
             },
             .flags = {
                 .buff_spiram = lvgl_use_spiram,
+                .buff_dma = !lvgl_use_spiram,
 #if LVGL_VERSION_MAJOR >= 9
                 .swap_bytes = true,
 #endif  /* LVGL_VERSION_MAJOR >= 9 */
@@ -190,10 +191,12 @@ esp_err_t test_dev_lcd_lvgl_init(void)
                  lvgl_use_spiram, lvgl_buffer_pixels, lvgl_double_buffer);
 
         // Add LCD screen to LVGL based on sub_type
-        if (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI) == 0 || strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_PARLIO) == 0) {
+        if (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI) == 0
+            || strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_PARLIO) == 0
+            || strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_I80) == 0) {
             disp = lvgl_port_add_disp(&disp_cfg);
             if (disp == NULL) {
-                ESP_LOGE(TAG, "Failed to add unified SPI LCD display");
+                ESP_LOGE(TAG, "Failed to add unified %s LCD display", lcd_cfg->sub_type);
                 return ESP_FAIL;
             }
         } else if (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_DSI) == 0) {

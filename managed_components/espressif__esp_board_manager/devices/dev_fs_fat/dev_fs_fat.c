@@ -32,7 +32,7 @@ int dev_fs_fat_init(void *cfg, int cfg_size, void **device_handle)
         return -1;
     }
 
-    const esp_board_entry_desc_t *entry_desc = esp_board_entry_find_desc(config->sub_type);
+    const esp_board_entry_desc_t *entry_desc = esp_board_entry_find_subtype_desc("fs_fat", config->sub_type);
     if (entry_desc == NULL) {
         ESP_LOGE(TAG, "Failed to find sub device: %s", config->sub_type);
         return -1;
@@ -58,7 +58,7 @@ int dev_fs_fat_deinit(void *device_handle)
     dev_fs_fat_config_t *cfg = NULL;
     esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg) {
-        const esp_board_entry_desc_t *desc = esp_board_entry_find_desc(cfg->sub_type);
+        const esp_board_entry_desc_t *desc = esp_board_entry_find_subtype_desc("fs_fat", cfg->sub_type);
         if (desc && desc->deinit_func) {
             int ret = desc->deinit_func(device_handle);
             if (ret != 0) {

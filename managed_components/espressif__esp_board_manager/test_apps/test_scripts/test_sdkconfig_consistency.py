@@ -100,13 +100,14 @@ def test_board_manager_defaults_contains_device_peripheral_symbols(bmgr_root, tm
     from generators.sdkconfig_manager import SDKConfigManager
 
     manager = SDKConfigManager(bmgr_root)
-    board_path = bmgr_root / 'boards' / 'esp32_s3_korvo2_v3'
+    board_name = 'esp32_s3_korvo2_v3'
+    board_path = bmgr_root / 'boards' / board_name
     output_file = tmp_path / 'board_manager.defaults'
 
     result = manager.generate_board_manager_defaults(
         board_path=str(board_path),
         project_path=str(tmp_path),
-        board_name='esp32_s3_korvo2_v3',
+        board_name=board_name,
         chip_name='esp32s3',
         output_file=str(output_file),
         device_types={'audio_codec', 'display_lcd'},

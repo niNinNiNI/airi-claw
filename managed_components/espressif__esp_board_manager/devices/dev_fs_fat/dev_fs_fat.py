@@ -43,6 +43,7 @@ VALID_SDMMC_ENUMS = {
         'SDMMC_FREQ_SDR50'         # 100000
     ],
     'slot_flags': [
+        0,
         'SDMMC_SLOT_FLAG_INTERNAL_PULLUP',
         'SDMMC_SLOT_FLAG_WP_ACTIVE_HIGH',
         'SDMMC_SLOT_FLAG_UHS1'
@@ -85,8 +86,10 @@ def get_enum_value(value: str, full_enum: str, enum_type: str = None) -> str:
     Returns:
         The enum value to use
     """
-    if not value:
+    if value is None or value == '':
         result = full_enum
+    elif enum_type == 'slot_flags' and value == '0':
+        result = 0
     else:
         result = value
 

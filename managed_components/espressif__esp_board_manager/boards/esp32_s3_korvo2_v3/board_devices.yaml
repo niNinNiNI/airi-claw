@@ -72,6 +72,7 @@ devices:
   - name: display_lcd
     chip: ili9341
     type: display_lcd
+    depends_on: gpio_expander
     version: default
     sub_type: spi
     dependencies:

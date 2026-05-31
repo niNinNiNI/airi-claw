@@ -38,6 +38,7 @@ from generators.utils.file_utils import (
 )
 from generators import get_config_generator, get_sdkconfig_manager, get_dependency_manager, get_source_scanner
 from generators.parser_loader import load_parsers
+from generators.config_generator import BoardDirectory, format_board_groups
 from generators.peripheral_parser import PeripheralParser
 from generators.device_parser import DeviceParser
 from generators.name_validator import parse_component_name
@@ -57,6 +58,13 @@ from generators.amend import (
 
 
 KCONFIG_PROJBUILD_FILE = 'Kconfig.projbuild'
+
+
+def board_directory_path(board_info) -> Optional[str]:
+    """Return a filesystem path from either legacy board path strings or BoardDirectory entries."""
+    if board_info is None:
+        return None
+    return board_info.path if isinstance(board_info, BoardDirectory) else board_info
 
 
 class BoardConfigGenerator(LoggerMixin):
@@ -766,6 +774,17 @@ class BoardConfigGenerator(LoggerMixin):
 
             # Write descriptor array
             f.write('// Device descriptor array\n')
+
+            # First, write all the dependency string arrays if they exist
+            for d in devices:
+                if hasattr(d, 'depends_on') and d.depends_on:
+                    dep_var = 'esp_bmgr_' + d.name.replace('-', '_') + '_deps'
+                    f.write(f'static const char* {dep_var}[] = {{\n')
+                    for dep in d.depends_on:
+                        f.write(f'    "{dep}",\n')
+                    f.write('};\n')
+            f.write('\n')
+
             f.write('const esp_board_device_desc_t g_esp_board_devices[] = {\n')
             N = len(devices)
             for i, d in enumerate(devices):
@@ -781,6 +800,11 @@ class BoardConfigGenerator(LoggerMixin):
                 power_ctrl_device = getattr(d, 'power_ctrl_device', None)
                 # Get sub_type value, default to None
                 sub_type = getattr(d, 'sub_type', None)
+                # Dependencies
+                depends_on = getattr(d, 'depends_on', None)
+                depends_on_num = len(depends_on) if depends_on else 0
+                dep_var = 'esp_bmgr_' + d.name.replace('-', '_') + '_deps' if depends_on else 'NULL'
+
                 f.write('    {\n')
                 f.write(f'        .next = {next_str},\n')
                 f.write(f'        .name = "{d.name}",\n')
@@ -799,6 +823,8 @@ class BoardConfigGenerator(LoggerMixin):
                 # Only write power_ctrl_device if it's configured
                 if power_ctrl_device is not None:
                     f.write(f'        .power_ctrl_device = "{(d.power_ctrl_device)}",\n')
+                f.write(f'        .depends_on = {dep_var},\n')
+                f.write(f'        .depends_on_num = {depends_on_num},\n')
                 f.write('    },\n')
             f.write('};\n')
 
@@ -1516,7 +1542,8 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             selected_board = self.config_generator.get_selected_board_from_sdkconfig()
             self.logger.info(f'✅ Selected board from sdkconfig: {selected_board}')
 
-        board_path = all_boards.get(selected_board)
+        selected_info = all_boards.get(selected_board)
+        board_path = board_directory_path(selected_info)
 
         # Display board information
         if board_path:
@@ -1665,7 +1692,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             self.logger.info('⚙️  Step 5/8: Processing devices and dependencies...')
 
             # Get board path for extra_dev scanning
-            board_path = all_boards.get(selected_board)
+            board_path = board_directory_path(all_boards.get(selected_board))
             extra_configs = {}
             extra_includes = set()
             # TODO: Remove this once we have a way to scan extra_dev files
@@ -1742,7 +1769,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         self.logger.info('⚙️  Step 7/8: Updating SDK configuration...')
 
         # Get chip name from board_info.yaml (needed for both sdkconfig and sdkconfig.defaults)
-        board_path = all_boards.get(selected_board)
+        board_path = board_directory_path(all_boards.get(selected_board))
         if not board_path:
             self.logger.error(f'❌ Board path not found for {selected_board}')
             return False
@@ -1864,8 +1891,8 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         # Write board info directly to components/gen_bmgr_codes
         gen_bmgr_codes_dir = self._get_gen_bmgr_codes_dir(project_artifact_root)
         os.makedirs(gen_bmgr_codes_dir, exist_ok=True)
-        if selected_board in all_boards:
-            self.write_board_info(all_boards[selected_board], out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_info.c'))
+        if board_path:
+            self.write_board_info(board_path, out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_info.c'))
         else:
             self.logger.warning(f'⚠️  Cannot write board info: board "{selected_board}" not found in all_boards')
 
@@ -2073,86 +2100,75 @@ idf_component_set_property(${{COMPONENT_NAME}} WHOLE_ARCHIVE TRUE)
             self.logger.error(f'❌ Error setting up gen_bmgr_codes component: {e}')
             return False
 
-def resolve_board_name_or_index(board_input: str, all_boards: dict, generator, board_customer_path: Optional[str] = None) -> Optional[str]:
-    """Resolve board name from input (board name or index number)
+def board_directory_from_path(generator, board_input: str) -> Optional[BoardDirectory]:
+    """If ``board_input`` looks like a board directory on disk, return a BoardDirectory for it.
 
-    Args:
-        board_input: Board name, index number, or board directory path (as string)
-        all_boards: Dictionary of all available boards
-        generator: BoardConfigGenerator instance (for boards_dir access)
-        board_customer_path: Optional customer boards path
+    Returns ``None`` if ``board_input`` does not resolve to a directory whose layout
+    matches a board (i.e. ``_is_board_directory`` is False), so the caller can fall
+    back to name / index lookup against a scanned board map.
 
-    Returns:
-        Board name or None if not found
+    The ``source`` field is filled with ``'external'`` because direct-path inputs
+    bypass the regular discovery channels and never appear in grouped listings.
     """
-    # 0. Check if input is a valid board directory path (absolute or relative).
-    # Relative direct-board paths are resolved against cwd first for legacy behavior,
-    # then against the generator project root so --project-dir is honored consistently.
-    board_path_candidates = [Path(board_input).expanduser()]
-    if not board_path_candidates[0].is_absolute():
+    candidates = [Path(board_input).expanduser()]
+    if not candidates[0].is_absolute():
         project_dir = getattr(generator, 'project_dir', None)
         if project_dir:
-            board_path_candidates.append(Path(project_dir) / board_path_candidates[0])
+            candidates.append(Path(project_dir) / candidates[0])
 
-    seen_board_paths = set()
-    for candidate in board_path_candidates:
+    seen: set = set()
+    for candidate in candidates:
         abs_path = str(candidate.resolve())
-        if abs_path in seen_board_paths:
+        if abs_path in seen:
             continue
-        seen_board_paths.add(abs_path)
+        seen.add(abs_path)
         if not os.path.isdir(abs_path):
             continue
-        if generator.config_generator._is_board_directory(abs_path):
-            # Try to get board name from board_info.yaml
-            board_info_path = os.path.join(abs_path, 'board_info.yaml')
-            board_name = None
-            if os.path.exists(board_info_path):
-                try:
-                    with open(board_info_path, 'r', encoding='utf-8') as f:
-                        board_yml = yaml.safe_load(f)
-                        board_name = board_yml.get('board')
-                except Exception:
-                    pass
+        if not generator.config_generator._is_board_directory(abs_path):
+            continue
 
-            # Fallback to directory name if YAML is invalid or board name is not found
-            if not board_name:
-                # Use normpath to ensure basename returns the directory name even if there is a trailing slash
-                board_name = os.path.basename(os.path.normpath(abs_path))
+        board_name: Optional[str] = None
+        board_info_path = os.path.join(abs_path, 'board_info.yaml')
+        if os.path.exists(board_info_path):
+            try:
+                with open(board_info_path, 'r', encoding='utf-8') as f:
+                    board_yml = yaml.safe_load(f)
+                    board_name = board_yml.get('board')
+            except Exception:
+                pass
+        if not board_name:
+            board_name = os.path.basename(os.path.normpath(abs_path))
 
-            # Register in all_boards so subsequent resolution can find it
-            all_boards[board_name] = abs_path
-            return board_name
-    # Check if input is a number
+        return BoardDirectory(
+            name=board_name,
+            path=abs_path,
+            source='external',
+            source_type='component',
+        )
+    return None
+
+
+def resolve_board_name_or_index(board_input: str, all_boards: Dict[str, BoardDirectory], generator, board_customer_path: Optional[str] = None) -> Optional[str]:
+    """Resolve board name from input (board name or index number).
+
+    For direct-path inputs the caller should prefer :func:`board_directory_from_path`
+    so that the full board scan can be skipped; this function still handles paths
+    for backwards compatibility and will register the discovered board into
+    ``all_boards``.
+    """
+    info = board_directory_from_path(generator, board_input)
+    if info is not None:
+        all_boards[info.name] = info
+        return info.name
+
     if board_input.isdigit():
         board_idx = int(board_input)
         if board_idx < 1 or board_idx > len(all_boards):
             return None
-
-        # Group boards by source (same as list-boards display)
-        main_boards = {}
-        customer_boards = {}
-        component_boards = {}
-
-        resolved_customer = str(Path(board_customer_path).resolve()) if board_customer_path else None
-        for board_name, board_path in all_boards.items():
-            board_path_obj = Path(board_path)
-            if board_path_obj.parent == generator.boards_dir:
-                main_boards[board_name] = board_path
-            elif resolved_customer and str(board_path_obj.resolve()).startswith(resolved_customer):
-                customer_boards[board_name] = board_path
-            else:
-                component_boards[board_name] = board_path
-
-        # Create ordered list (same order as display)
-        ordered_boards = []
-        ordered_boards.extend(sorted(main_boards.keys()))
-        ordered_boards.extend(sorted(customer_boards.keys()))
-        ordered_boards.extend(sorted(component_boards.keys()))
-
+        ordered_boards = [bi.name for bi in generator.config_generator.sorted_board_infos(all_boards)]
         return ordered_boards[board_idx - 1]
-    else:
-        # Direct board name
-        return board_input if board_input in all_boards else None
+
+    return board_input if board_input in all_boards else None
 
 def main():
     """Main entry point with command line argument parsing and error handling"""
@@ -2332,54 +2348,17 @@ Examples:
         print('=' * 40)
 
         try:
-            # Scan and display boards
-            all_boards = generator.config_generator.scan_board_directories(args.board_customer_path)
+            board_infos = generator.config_generator.scan_board_directories(args.board_customer_path)
 
-            if all_boards:
-                generator.logger.info(f'Found {len(all_boards)} board(s):')
+            if board_infos:
+                generator.logger.info(f'Found {len(board_infos)} board(s):')
                 print()
 
-                # Group boards by source
-                main_boards = {}
-                customer_boards = {}
-                component_boards = {}
-
-                resolved_customer = str(Path(args.board_customer_path).resolve()) if args.board_customer_path else None
-                for board_name, board_path in all_boards.items():
-                    board_path_obj = Path(board_path)
-                    if board_path_obj.parent == generator.boards_dir:
-                        main_boards[board_name] = board_path
-                    elif resolved_customer and str(board_path_obj.resolve()).startswith(resolved_customer):
-                        customer_boards[board_name] = board_path
+                for line in format_board_groups(board_infos):
+                    if line:
+                        generator.logger.info(line)
                     else:
-                        component_boards[board_name] = board_path
-
-                # Create ordered list for numbering
-                board_idx = 1
-
-                # Display main boards
-                if main_boards:
-                    generator.logger.info('Main Boards:')
-                    for board_name in sorted(main_boards.keys()):
-                        generator.logger.info(f'  [{board_idx}] {board_name}')
-                        board_idx += 1
-                    print()
-
-                # Display customer boards
-                if customer_boards:
-                    generator.logger.info('Customer Boards:')
-                    for board_name in sorted(customer_boards.keys()):
-                        generator.logger.info(f'  [{board_idx}] {board_name}')
-                        board_idx += 1
-                    print()
-
-                # Display component boards
-                if component_boards:
-                    generator.logger.info('Component Boards:')
-                    for board_name in sorted(component_boards.keys()):
-                        generator.logger.info(f'  [{board_idx}] {board_name}')
-                        board_idx += 1
-                    print()
+                        print()
             else:
                 generator.logger.warning('No boards found!')
 
@@ -2392,21 +2371,28 @@ Examples:
             traceback.print_exc()
             sys.exit(1)
 
-    # Resolve board name from name or index
+    # Resolve board name from name or index.
+    # Fast path: if board_name looks like a directory on disk, build a one-entry
+    # board map directly and skip the full discovery scan.
     cached_boards = None
     if args.board_name:
-        all_boards = generator.config_generator.scan_board_directories(args.board_customer_path)
-        cached_boards = all_boards  # Cache for reuse in run()
-        resolved_board = resolve_board_name_or_index(args.board_name, all_boards, generator, args.board_customer_path)
-        if resolved_board is None:
-            if args.board_name.isdigit():
-                generator.logger.error(f'❌ Board index {args.board_name} is out of range (1-{len(all_boards)})')
-            else:
-                generator.logger.error(f'❌ Board "{args.board_name}" not found')
-                generator.logger.info(f'Available boards: {sorted(all_boards.keys())}')
-            sys.exit(1)
-        args.board_name = resolved_board
-        generator.logger.info(f'ℹ️  Resolved board: {resolved_board}')
+        direct_info = board_directory_from_path(generator, args.board_name)
+        if direct_info is not None:
+            cached_boards = {direct_info.name: direct_info}
+            args.board_name = direct_info.name
+            generator.logger.info(f'ℹ️  Resolved board: {direct_info.name}')
+        else:
+            cached_boards = generator.config_generator.scan_board_directories(args.board_customer_path)
+            resolved_board = resolve_board_name_or_index(args.board_name, cached_boards, generator, args.board_customer_path)
+            if resolved_board is None:
+                if args.board_name.isdigit():
+                    generator.logger.error(f'❌ Board index {args.board_name} is out of range (1-{len(cached_boards)})')
+                else:
+                    generator.logger.error(f'❌ Board "{args.board_name}" not found')
+                    generator.logger.info(f'Available boards: {sorted(cached_boards.keys())}')
+                sys.exit(1)
+            args.board_name = resolved_board
+            generator.logger.info(f'ℹ️  Resolved board: {resolved_board}')
 
     try:
         success = generator.run(args, cached_boards=cached_boards)

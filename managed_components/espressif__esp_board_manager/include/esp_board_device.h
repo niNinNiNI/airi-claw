@@ -41,15 +41,17 @@ typedef int (*esp_board_device_callback_register_func)(void *dev_handle, const v
  * @brief  Structure representing a device descriptor
  */
 typedef struct esp_board_device_desc {
-    const struct esp_board_device_desc *next;               /*!< Pointer to next device descriptor */
-    const char                         *name;               /*!< Device name */
-    const char                         *chip;               /*!< Device chip type */
-    const char                         *type;               /*!< Device type */
-    const char                         *sub_type;           /*!< Device sub-type */
-    const void                         *cfg;                /*!< Device configuration data */
-    uint16_t                            cfg_size;           /*!< Size of configuration data */
-    uint8_t                             init_skip : 1;      /*!< Skip initialization when manager initializes all devices */
-    const char                         *power_ctrl_device;  /*!< Power control device name for this device */
+    const struct esp_board_device_desc  *next;               /*!< Pointer to next device descriptor */
+    const char                          *name;               /*!< Device name */
+    const char                          *chip;               /*!< Device chip type */
+    const char                          *type;               /*!< Device type */
+    const char                          *sub_type;           /*!< Device sub-type */
+    const void                          *cfg;                /*!< Device configuration data */
+    uint16_t                             cfg_size;           /*!< Size of configuration data */
+    uint8_t                              init_skip : 1;      /*!< Skip initialization when manager initializes all devices */
+    const char                          *power_ctrl_device;  /*!< Power control device name for this device */
+    const char * const                  *depends_on;         /*!< Array of device names this device depends on */
+    uint8_t                              depends_on_num;     /*!< Number of dependencies */
 } esp_board_device_desc_t;
 
 /**
@@ -306,7 +308,6 @@ const esp_board_device_handle_t *esp_board_device_find_by_handle(void *device_ha
  *
  * @param[in]  name      Device name to control power for
  * @param[in]  power_on  True to enable power, false to disable power
- * @param[in]  args      Optional arguments for power control (can be NULL)
  *
  * @return
  *       - ESP_OK                              On success

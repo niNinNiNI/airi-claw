@@ -44,6 +44,7 @@ extern "C" {
 #define ESP_BOARD_ERR_DEVICE_INIT_FAILED    (ESP_BOARD_ERR_DEVICE_BASE - 0x04)  /*!< Init failed */
 #define ESP_BOARD_ERR_DEVICE_DEINIT_FAILED  (ESP_BOARD_ERR_DEVICE_BASE - 0x05)  /*!< Deinit failed */
 #define ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED  (ESP_BOARD_ERR_DEVICE_BASE - 0x06)  /*!< No configuration supported */
+#define ESP_BOARD_ERR_DEVICE_DEP_IN_USE     (ESP_BOARD_ERR_DEVICE_BASE - 0x07)  /*!< Dependency in use */
 
 /* Error handling macros with ## operator for flexible usage */
 #define ESP_BOARD_RETURN_ON_FALSE(condition, error_code, tag, format, ...)  do {  \

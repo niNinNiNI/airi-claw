@@ -6,7 +6,6 @@
  */
 
 #include <inttypes.h>
-#include <string.h>
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_board_entry.h"
@@ -14,17 +13,6 @@
 #include "dev_led_strip.h"
 
 static const char *TAG = "DEV_LED_STRIP";
-
-static const char *dev_led_strip_resolve_entry_name(const char *sub_type)
-{
-    if (sub_type && strcmp(sub_type, ESP_BOARD_DEVICE_LED_STRIP_SUB_TYPE_RMT) == 0) {
-        return "led_strip_sub_rmt";
-    }
-    if (sub_type && strcmp(sub_type, ESP_BOARD_DEVICE_LED_STRIP_SUB_TYPE_SPI) == 0) {
-        return "led_strip_sub_spi";
-    }
-    return sub_type;
-}
 
 int dev_led_strip_init(void *cfg, int cfg_size, void **device_handle)
 {
@@ -49,7 +37,7 @@ int dev_led_strip_init(void *cfg, int cfg_size, void **device_handle)
              config->sub_type, config->strip_config.strip_gpio_num,
              config->strip_config.max_leds);
 
-    const esp_board_entry_desc_t *entry_desc = esp_board_entry_find_desc(dev_led_strip_resolve_entry_name(config->sub_type));
+    const esp_board_entry_desc_t *entry_desc = esp_board_entry_find_subtype_desc("led_strip", config->sub_type);
     if (entry_desc == NULL || entry_desc->init_func == NULL) {
         ESP_LOGE(TAG, "Failed to find LED strip sub device: %s", config->sub_type);
         return -1;
@@ -84,7 +72,7 @@ int dev_led_strip_deinit(void *device_handle)
         return -1;
     }
 
-    const esp_board_entry_desc_t *desc = esp_board_entry_find_desc(dev_led_strip_resolve_entry_name(cfg->sub_type));
+    const esp_board_entry_desc_t *desc = esp_board_entry_find_subtype_desc("led_strip", cfg->sub_type);
     if (desc == NULL || desc->deinit_func == NULL) {
         ESP_LOGE(TAG, "No deinit function found for LED strip sub type: %s", cfg->sub_type);
         return -1;

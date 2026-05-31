@@ -66,6 +66,12 @@ pip install esp-bmgr-assist
 pip install --upgrade esp-bmgr-assist
 ```
 
+If PyPI access is slow, use the Tsinghua PyPI mirror:
+
+```bash
+pip install esp-bmgr-assist -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
 Tool link: [`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/)
 
 > **Note:** `esp-bmgr-assist` is only used to avoid manual `IDF_EXTRA_ACTIONS_PATH` configuration. Continue reading this document to add the `esp_board_manager` dependency to your project and learn the basic Board Manager commands.
@@ -258,7 +264,7 @@ void app_main(void)
         ESP_LOGE(TAG, "Failed to initialize board manager");
         return;
     }
-    // Get device handle, according to the device naming in esp_board_manager/boards/YOUR_TARGET_BOARD/board_devices.yaml
+    // Get device handle, according to the device naming in the selected board's board_devices.yaml
     dev_display_lcd_handles_t *lcd_handle;
     ret = esp_board_manager_get_device_handle("display_lcd", &lcd_handle);
     if (ret != ESP_OK) {
@@ -273,7 +279,7 @@ void app_main(void)
             ESP_LOGW(TAG, "Touch device exists but handle is unavailable");
         }
     }
-    // Get device configuration, according to the device naming in esp_board_manager/boards/YOUR_TARGET_BOARD/board_devices.yaml
+    // Get device configuration, according to the device naming in the selected board's board_devices.yaml
     dev_audio_codec_config_t *device_config;
     ret = esp_board_manager_get_device_config("audio_dac", &device_config);
     if (ret != ESP_OK) {
@@ -300,6 +306,7 @@ void app_main(void)
 | [`ESP VoCat Board V1.2`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp-vocat/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - | - |
 | Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (dual) | - | - | - | - |
 | [`ESP-BOX-3`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_3/hardware_overview_for_box_3.md) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ GT911/TT21100 auto-detect | - | - | - |
+| ESP32-S3 BOX2 | ESP32-S3 | ✅ ES8389 | ✅ SPI | ✅ ST7789 (I80) | - | - | ✅ Custom button | - |
 | ESP-HI | ESP32-C3 | ✅ Internal ADC + PDM speaker | - | ✅ ILI9341 | - | - | ✅ GPIO button | - |
 | ESP32-C3 Lyra | ESP32-C3 | ✅ Internal ADC + PDM speaker | - | - | - | - | - | - |
 | [`ESP32-S3 Korvo2 V3`](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100/GT911 auto-detect | ✅ DVP Camera | ✅ ADC button | - |
@@ -308,8 +315,9 @@ void app_main(void)
 | [`Lyrat Mini V1.1`](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/get-started-esp32-lyrat-mini.html) | ESP32 | ✅ ES8388 | ✅ SDMMC | - | - | - | ✅ ADC button | - |
 | [`ESP32-C5 Spot`](https://oshwhub.com/esp-college/esp-spot) | ESP32-C5 | ✅ ES8311 (dual) | - | - | - | - | - | - |
 | [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ✅ CSI Camera | - | - |
+| [`ESP32-P4-EYE`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-eye/user_guide.html) | ESP32-P4 | ✅ PDM microphone | ✅ SDMMC | ✅ ST7789 (SPI) | - | ✅ CSI Camera | ✅ GPIO button | - |
 | [`M5STACK CORES3`](https://docs.m5stack.com/en/core/CoreS3) | ESP32-S3 | ✅ AW88298 + ES7210 | ✅ SDSPI | ✅ ILI9342C | ✅ FT5x06 | ❌ | - | - |
-| [`M5STACK TAB5`](https://docs.m5stack.com/en/core/Tab5) | ESP32-P4 | ✅ ES8388 + ES7210 | ✅ SDMMC | ✅ ILI9881C | ✅ GT911 | SC202CS | - | - |
+| [`M5STACK TAB5`](https://docs.m5stack.com/en/core/Tab5) | ESP32-P4 | ✅ ES8388 + ES7210 | ✅ SDMMC | ✅ ILI9881C/ST7123 auto-detect | ✅ GT911/ST7123 auto-detect | ✅ SC202CS | - | - |
 | [`ESP-BOX-LITE`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_lite/hardware_overview_for_lite.md) | ESP32-S3 | ✅ ES8156 + ES7243E | - | ✅ ST7789 | - | - | - | - |
 
 Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicates the hardware does not have the corresponding capability.
@@ -319,15 +327,16 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 | Device Name | Description | Type | Subtype | Peripheral | Reference YAML | Examples |
 |---|---|---|---|---|---|---|
 | `audio_dac`<br/>`audio_adc` | Audio codec | audio_codec | - | i2s<br/>i2c | [`dev_audio_codec`](devices/dev_audio_codec/dev_audio_codec.yaml) | **[`test_dev_audio_codec.c`](test_apps/main/test_dev_audio_codec.c)** <br/>Audio codec with DAC/ADC, SD card playback, recording, and loopback testing |
-| `display_lcd` | LCD | display_lcd | spi<br/>dsi<br/>rgb | spi<br/>dsi | [`dev_display_lcd`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
+| `display_lcd` | LCD | display_lcd | dsi<br/>spi<br/>parlio<br/>rgb<br/>rgb_3wire_spi<br/>i80 | dsi<br/>spi | [`dev_display_lcd`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
 | `fs_fat` | FAT filesystem device | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fs_fat.c`](test_apps/main/test_dev_fs_fat.c)** <br/>SD card operations and FATFS file system testing |
 | `fs_spiffs` | SPIFFS filesystem device | fs_spiffs | - | - | [`dev_fs_spiffs`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) | **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** <br/>SPIFFS file system testing |
 | `lcd_touch` | Touch screen | lcd_touch | i2c | i2c | [`dev_lcd_touch`](devices/dev_lcd_touch/dev_lcd_touch.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
-| `sdcard_power_ctrl` | Power control device | power_ctrl | gpio | gpio | [`dev_power_ctrl`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
+| `power_ctrl` | Power control device | power_ctrl | gpio | gpio | [`dev_power_ctrl`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
+| `gpio_ctrl` | GPIO control device | gpio_ctrl | - | gpio | [`dev_gpio_ctrl`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) | - |
 | `lcd_brightness` | LEDC control device | ledc_ctrl | - | ledc | [`dev_ledc_ctrl`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) | **[`test_dev_ledc.c`](test_apps/main/test_dev_ledc.c)** <br/>LEDC device for PWM and backlight control |
 | `gpio_expander` | GPIO expander chip | gpio_expander | - | i2c | [`dev_gpio_expander`](devices/dev_gpio_expander/dev_gpio_expander.yaml) | **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)**<br/>GPIO expander chip testing |
 | `camera` | Camera | camera | dvp<br/>csi | i2c<br/>ldo | [`dev_camera`](devices/dev_camera/dev_camera.yaml) | **[`test_dev_camera.c`](test_apps/main/test_dev_camera.c)** <br/>Testing Camera sensor's video stream capture capability |
-| `button` | Button | button | gpio<br/>adc | gpio<br/>adc | [`dev_button`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>Button testing |
+| `button` | Button | button | gpio<br/>adc_single<br/>adc_multi<br/>custom | gpio<br/>adc | [`dev_button`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>Button testing |
 | `led_strip` | LED strip | led_strip | rmt<br/>spi | - | [`dev_led_strip`](devices/dev_led_strip/dev_led_strip.yaml) | **[`test_dev_led_strip.c`](test_apps/main/test_dev_led_strip.c)** <br/>LED strip initialization and control testing |
 
 > For the same device, we will no longer distinguish types by interface. For example, `dev_fatfs_sdcard` and `dev_fatfs_sdcard_spi` will be unified under `fs_fat` for management, and `dev_display_lcd_spi` will also be changed to use `dev_display_lcd` for management.

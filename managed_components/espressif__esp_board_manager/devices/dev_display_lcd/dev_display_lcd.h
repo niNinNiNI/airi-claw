@@ -20,6 +20,9 @@
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT
 #include "esp_lcd_io_parl.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_I80_SUPPORT
+#include "esp_lcd_io_i80.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_I80_SUPPORT */
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
 #include "esp_lcd_panel_rgb.h"
 #ifndef ESP_RGB_LCD_PANEL_MAX_FB_NUM
@@ -36,6 +39,7 @@ extern "C" {
 #define ESP_BOARD_DEVICE_LCD_SUB_TYPE_PARLIO         "parlio"         /*!< LCD display over PARLIO (esp_lcd_io_parl) */
 #define ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB            "rgb"            /*!< LCD display over RGB (esp_lcd_panel_rgb) */
 #define ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB_3WIRE_SPI  "rgb_3wire_spi"  /*!< RGB LCD with 3-wire SPI init IO */
+#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_I80            "i80"            /*!< LCD display over I80 */
 
 typedef struct dev_display_lcd_config dev_display_lcd_config_t;
 
@@ -127,6 +131,17 @@ typedef struct {
 } dev_display_lcd_rgb_3wire_spi_sub_config_t;
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
 
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_I80_SUPPORT
+/**
+ * @brief  I80 LCD display sub configuration
+ */
+typedef struct {
+    esp_lcd_i80_bus_config_t       bus_config;    /*!< I80 bus configuration */
+    esp_lcd_panel_io_i80_config_t  io_config;     /*!< Panel IO configuration */
+    esp_lcd_panel_dev_config_t     panel_config;  /*!< Panel configuration */
+} dev_display_lcd_i80_sub_config_t;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_I80_SUPPORT */
+
 /**
  * @brief  LCD display device handles structure
  *
@@ -176,6 +191,9 @@ struct dev_display_lcd_config {
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
         dev_display_lcd_rgb_3wire_spi_sub_config_t  rgb_3wire_spi;
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_I80_SUPPORT
+        dev_display_lcd_i80_sub_config_t  i80;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_I80_SUPPORT */
     } sub_cfg;
 };
 

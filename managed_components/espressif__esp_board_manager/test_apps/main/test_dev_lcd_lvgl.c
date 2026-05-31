@@ -364,7 +364,7 @@ lcd_lvgl_test_result_t lcd_lvgl_test_run_single(lcd_lvgl_color_t color)
 
     // Wait for button press with timeout
     TickType_t start_time = xTaskGetTickCount();
-    const TickType_t timeout = pdMS_TO_TICKS(15000);  // 15 seconds timeout
+    const TickType_t timeout = pdMS_TO_TICKS(5000);  // 5 seconds timeout
 
     while (!test_ctx.button_pressed) {
         vTaskDelay(pdMS_TO_TICKS(100));

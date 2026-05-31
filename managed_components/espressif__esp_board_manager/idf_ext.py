@@ -30,7 +30,8 @@ import logging
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
-from gen_bmgr_config_codes import BoardConfigGenerator, resolve_board_name_or_index
+from gen_bmgr_config_codes import BoardConfigGenerator, board_directory_from_path, resolve_board_name_or_index
+from generators.config_generator import format_board_groups
 from generators.utils.file_utils import (
     ensure_existing_directory,
     normalize_project_dir,
@@ -266,6 +267,8 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
             return task_name
         if task_name in _collect_known_board_names(project_dir):
             return task_name
+        if re.match(r'^[A-Za-z0-9]+(?:_[A-Za-z0-9]+)+$', task_name):
+            return task_name
         return None
 
     def board_manager_global_callback(ctx, global_args, tasks):
@@ -462,59 +465,35 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
 
         print('✅ Clean operation completed successfully!')
 
-    def _print_grouped_boards(generator: BoardConfigGenerator, all_boards: Dict[str, str], customer_path: Optional[str]) -> None:
-        if all_boards:
-            print(f'✅ Found {len(all_boards)} board(s):')
-            print()
-
-            main_boards = {}
-            customer_boards = {}
-            component_boards = {}
-
-            for board_name, board_path in all_boards.items():
-                board_path_obj = Path(board_path)
-                if board_path_obj.parent == generator.boards_dir:
-                    main_boards[board_name] = board_path
-                elif customer_path and board_path.startswith(customer_path):
-                    customer_boards[board_name] = board_path
-                else:
-                    component_boards[board_name] = board_path
-
-            board_idx = 1
-            if main_boards:
-                print('ℹ️  Main Boards:')
-                for board_name in sorted(main_boards.keys()):
-                    print(f'  [{board_idx}] {board_name}')
-                    board_idx += 1
-                print()
-
-            if customer_boards:
-                print('ℹ️  Customer Boards:')
-                for board_name in sorted(customer_boards.keys()):
-                    print(f'  [{board_idx}] {board_name}')
-                    board_idx += 1
-                print()
-
-            if component_boards:
-                print('ℹ️  Component Boards:')
-                for board_name in sorted(component_boards.keys()):
-                    print(f'  [{board_idx}] {board_name}')
-                    board_idx += 1
-                print()
-        else:
+    def _print_grouped_boards(generator: BoardConfigGenerator, customer_path: Optional[str]) -> None:
+        board_infos = generator.config_generator.scan_board_directories(customer_path)
+        if not board_infos:
             print('⚠️  No boards found!')
+            return
+
+        print(f'✅ Found {len(board_infos)} board(s):')
+        print()
+
+        for line in format_board_groups(board_infos):
+            print(f'ℹ️  {line}' if line and not line.startswith(' ') else line)
 
     def _run_list_boards_command(generator: BoardConfigGenerator, command_args: BmgrCommandArgs) -> None:
         print('ESP Board Manager - Board Listing')
         print('=' * 40)
 
-        all_boards = generator.config_generator.scan_board_directories(command_args.board_customer_path)
-        _print_grouped_boards(generator, all_boards, command_args.board_customer_path)
+        _print_grouped_boards(generator, command_args.board_customer_path)
         print('✅ Board listing completed!')
 
-    def _resolve_requested_board(generator: BoardConfigGenerator, command_args: BmgrCommandArgs) -> Optional[Dict[str, str]]:
+    def _resolve_requested_board(generator: BoardConfigGenerator, command_args: BmgrCommandArgs) -> Optional[Dict[str, 'BoardDirectory']]:
         if not command_args.board_name:
             return None
+
+        # Fast path: direct board directory path bypasses the full scan.
+        direct_info = board_directory_from_path(generator, command_args.board_name)
+        if direct_info is not None:
+            command_args.board_name = direct_info.name
+            print(f'ℹ️  Resolved board: {direct_info.name}')
+            return {direct_info.name: direct_info}
 
         all_boards = generator.config_generator.scan_board_directories(command_args.board_customer_path)
         resolved_board = resolve_board_name_or_index(
@@ -583,7 +562,8 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
                     sys.exit(0)
             except Exception as e:
                 logging.debug('Failed to get subcommand help for %s: %s', target_name, e)
-            print(ctx.get_help())
+            if ctx is not None:
+                print(ctx.get_help())
             sys.exit(0)
 
         _set_bmgr_log_level(command_args.log_level)

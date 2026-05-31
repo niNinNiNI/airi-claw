@@ -128,4 +128,4 @@ int dev_fs_fat_sub_sdmmc_deinit(void *device_handle)
     return 0;
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(sdmmc, dev_fs_fat_sub_sdmmc_init, dev_fs_fat_sub_sdmmc_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(fs_fat, sdmmc, dev_fs_fat_sub_sdmmc_init, dev_fs_fat_sub_sdmmc_deinit);

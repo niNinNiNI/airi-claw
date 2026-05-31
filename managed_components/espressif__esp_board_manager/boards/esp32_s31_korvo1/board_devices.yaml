@@ -3,10 +3,9 @@ devices:
   - name: sdcard_power_ctrl
     type: power_ctrl
     sub_type: gpio
-    config:
-      peripherals:
-        - name: gpio_sd_power
-          active_level: 0
+    peripherals:
+      - name: gpio_sd_power
+        active_level: 0
 
   # On-board WS2812 status LED. Schematic net: GPIO37.
   - name: led_strip
@@ -93,32 +92,32 @@ devices:
         address: 0x20
         frequency: 400000
 
-  # # microSD card on SDMMC 4-bit bus. Shares GPIO20~25 stuffing option with SPI NAND.
-  # - name: fs_sdcard
-  #   type: fs_fat
-  #   sub_type: sdmmc
-  #   power_ctrl_device: sdcard_power_ctrl
-  #   version: default
-  #   config:
-  #     mount_point: "/sdcard"
-  #     vfs_config:
-  #       format_if_mount_failed: false
-  #       max_files: 5
-  #       allocation_unit_size: 16384
-  #     sub_config:
-  #       slot: SDMMC_HOST_SLOT_0
-  #       frequency: SDMMC_FREQ_HIGHSPEED
-  #       bus_width: 4
-  #       slot_flags: SDMMC_SLOT_FLAG_INTERNAL_PULLUP
-  #       pins:
-  #         clk: 24
-  #         cmd: 25
-  #         d0: 20
-  #         d1: 21
-  #         d2: 22
-  #         d3: 23
-  #         cd: -1
-  #         wp: -1
+  # microSD card on SDMMC 4-bit bus. Shares GPIO20~25 stuffing option with SPI NAND.
+  - name: fs_sdcard
+    type: fs_fat
+    sub_type: sdmmc
+    power_ctrl_device: sdcard_power_ctrl
+    version: default
+    config:
+      mount_point: "/sdcard"
+      vfs_config:
+        format_if_mount_failed: false
+        max_files: 5
+        allocation_unit_size: 16384
+      sub_config:
+        slot: SDMMC_HOST_SLOT_0
+        frequency: SDMMC_FREQ_HIGHSPEED
+        bus_width: 4
+        slot_flags: SDMMC_SLOT_FLAG_INTERNAL_PULLUP
+        pins:
+          clk: 24
+          cmd: 25
+          d0: 20
+          d1: 21
+          d2: 22
+          d3: 23
+          cd: -1
+          wp: -1
 
   # 800x480 RGB LCD panel. Schematic nets: RGB565 data GPIO8-19/33-36,
   # PCLK=GPIO40, DE=GPIO43, HSYNC=GPIO44, VSYNC=GPIO45.
@@ -193,30 +192,30 @@ devices:
       - name: i2c_master
         i2c_addr: [0x28]  # GT1151 8-bit I2C address, from 7-bit 0x14
 
-  # # DVP camera interface. SCCB shares i2c_master with audio/touch.
-  # - name: camera
-  #   type: camera
-  #   version: default
-  #   sub_type: dvp
-  #   config:
-  #     dvp_config:
-  #       reset_io: 60
-  #       pwdn_io: 61
-  #       vsync_io: 56
-  #       data_width: CAM_CTLR_DATA_WIDTH_8
-  #       de_io: 57
-  #       pclk_io: 54
-  #       xclk_io: 55
-  #       xclk_freq: 20000000
-  #       data_io:
-  #         data_io_0: 46
-  #         data_io_1: 47
-  #         data_io_2: 48
-  #         data_io_3: 49
-  #         data_io_4: 50
-  #         data_io_5: 51
-  #         data_io_6: 52
-  #         data_io_7: 53
-  #   peripherals:
-  #     - name: i2c_master
-  #       frequency: 100000
+  # DVP camera interface. SCCB shares i2c_master with audio/touch.
+  - name: camera
+    type: camera
+    version: default
+    sub_type: dvp
+    config:
+      dvp_config:
+        reset_io: 60
+        pwdn_io: 61
+        vsync_io: 56
+        data_width: CAM_CTLR_DATA_WIDTH_8
+        de_io: 57
+        pclk_io: 54
+        xclk_io: 55
+        xclk_freq: 20000000
+        data_io:
+          data_io_0: 46
+          data_io_1: 47
+          data_io_2: 48
+          data_io_3: 49
+          data_io_4: 50
+          data_io_5: 51
+          data_io_6: 52
+          data_io_7: 53
+    peripherals:
+      - name: i2c_master
+        frequency: 100000

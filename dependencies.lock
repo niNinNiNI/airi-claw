@@ -91,8 +91,6 @@ dependencies:
       path: ../../common/lua_module_builder
     - name: video_player
       path: ../../../application/edge_agent/components/video_player
-      rules:
-      - if: $CONFIG{APP_CLAW_CAP_ASR} == True
     - name: lua_driver_adc
       path: ../../lua_modules/lua_driver_adc
       rules:
@@ -478,7 +476,7 @@ dependencies:
       type: service
     version: 2.5.0
   espressif/esp_board_manager:
-    component_hash: 559e8fbd848c9bb29064b280099b0befd0ec5f8bf42483b95aac95f954e9f4a1
+    component_hash: 363681e8447b77ed6f6752df308da82ba2839e3f0fd6b388d0a26e786c3e9040
     dependencies:
     - matches:
       - if: $CONFIG{ESP_BOARD_DEV_BUTTON_SUPPORT} == True
@@ -526,7 +524,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 0.5.11
+    version: 0.5.13
   espressif/esp_codec_dev:
     component_hash: 9293329ccb361f67c6e847ab8f693b2d9158b2e438eff583c28558c29cdf3dca
     dependencies:
@@ -609,7 +607,7 @@ dependencies:
       type: service
     version: 1.7.0
   espressif/esp_wifi_remote:
-    component_hash: 4ad3e3ec9ce7d26fde1ccd2b550b88952cc96ac089a06e0247f69d005cc31e1f
+    component_hash: 0b57d4ca039bbda1d4eb794f994f8d59547cdbcfd7962227890cd3a0979e6fa8
     dependencies:
     - name: espressif/esp_hosted
       registry_url: https://components.espressif.com
@@ -627,7 +625,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.5.1
+    version: 1.6.0
   espressif/i2c_bus:
     component_hash: 804ec068d163570fd367b279a310ca383484630d2310c586b50def0bcf21de13
     dependencies:
@@ -846,6 +844,12 @@ dependencies:
       path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_event_publisher
       type: local
     version: '*'
+  lua_module_lcd_touch:
+    dependencies: []
+    source:
+      path: /home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_lcd_touch
+      type: local
+    version: '*'
   lua_module_led_strip:
     dependencies:
     - name: espressif/led_strip
@@ -900,6 +904,12 @@ dependencies:
     - name: espressif/esp_board_manager
       public: true
       version: '*'
+    - name: cap_lua
+      path: ../../../../components/claw_capabilities/cap_lua
+    - name: claw_cap
+      path: ../../../../components/claw_modules/claw_cap
+    - name: claw_core
+      path: ../../../../components/claw_modules/claw_core
     source:
       path: /home/nini/esp-claw-master_1/esp-claw-master/application/edge_agent/components/video_player
       type: local
@@ -920,7 +930,10 @@ direct_dependencies:
 - app_claw
 - app_config
 - cap_im_local
+- cap_lua
 - captive_dns
+- claw_cap
+- claw_core
 - display_arbiter
 - esp_extractor
 - espressif/esp_audio_codec
@@ -937,6 +950,6 @@ direct_dependencies:
 - settings
 - video_player
 - wifi_manager
-manifest_hash: 8c510cd7a4675ab032e8b6e429480bb054c0104b6d3aa9352362599345894a35
+manifest_hash: 02a6b74612c1720028c2e9b9aa159f285d0c9e7104197bae9ed0c0747d744fe6
 target: esp32p4
 version: 2.0.0

@@ -26,7 +26,7 @@ int dev_button_init(void *cfg, int cfg_size, void **device_handle)
     esp_err_t ret = ESP_FAIL;
     dev_button_handles_t *handle = NULL;
     const dev_button_config_t *config = (const dev_button_config_t *)cfg;
-    const esp_board_entry_desc_t *entry_desc = esp_board_entry_find_desc(config->sub_type);
+    const esp_board_entry_desc_t *entry_desc = esp_board_entry_find_subtype_desc("button", config->sub_type);
     if (entry_desc == NULL) {
         ESP_LOGE(TAG, "Failed to find sub device: %s", config->sub_type);
         return -1;
@@ -53,7 +53,7 @@ int dev_button_deinit(void *device_handle)
     dev_button_config_t *cfg = NULL;
     esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg) {
-        const esp_board_entry_desc_t *desc = esp_board_entry_find_desc(cfg->sub_type);
+        const esp_board_entry_desc_t *desc = esp_board_entry_find_subtype_desc("button", cfg->sub_type);
         if (desc && desc->deinit_func) {
             int ret = desc->deinit_func(device_handle);
             if (ret != 0) {

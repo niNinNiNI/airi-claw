@@ -92,4 +92,4 @@ int dev_camera_sub_spi_deinit(void *device_handle)
 }
 
 /* Entry name must differ from display_lcd "spi" (see dev_camera.c mapping). */
-ESP_BOARD_ENTRY_IMPLEMENT(camera_spi, dev_camera_sub_spi_init, dev_camera_sub_spi_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(camera, spi, dev_camera_sub_spi_init, dev_camera_sub_spi_deinit);

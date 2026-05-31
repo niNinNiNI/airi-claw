@@ -103,7 +103,7 @@
 # convert the YAML below into an audio_codec_adc_continuous_cfg_t-equivalent
 # configuration and create the ADC data interface locally.
 # -----------------------------------------------------------------------------
-- name: audio_adc_mic
+- name: audio_adc_mic_single_unit
   chip: internal                         # Internal ADC path, no external codec chip is used
   type: audio_codec                      # Audio codec device type, must remain audio_codec
   config:

@@ -98,4 +98,4 @@ int dev_button_sub_gpio_deinit(void *device_handle)
     return ret == ESP_OK ? 0 : -1;
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(gpio, dev_button_sub_gpio_init, dev_button_sub_gpio_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(button, gpio, dev_button_sub_gpio_init, dev_button_sub_gpio_deinit);

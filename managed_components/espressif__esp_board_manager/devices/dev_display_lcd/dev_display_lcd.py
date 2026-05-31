@@ -455,6 +455,61 @@ def parse_rgb_3wire_spi_sub_config(full_config: dict = None, peripherals_dict=No
         'auto_del_panel_io': lcd_panel_config.get('auto_del_panel_io', False),
     }
 
+def parse_i80_sub_config(full_config: dict = None, peripherals_dict=None) -> dict:
+    """Parse I80 sub configuration."""
+    sub_config = full_config.get('config', {})
+
+    bus_config = sub_config.get('bus_config', {})
+    bus_config_parsed = {
+        'dc_gpio_num': bus_config.get('dc_gpio_num', -1),
+        'wr_gpio_num': bus_config.get('wr_gpio_num', -1),
+        'clk_src': bus_config.get('clk_src', 'LCD_CLK_SRC_DEFAULT'),
+        'data_gpio_nums': bus_config.get('data_gpio_nums', [-1] * 8),
+        'bus_width': bus_config.get('bus_width', 8),
+        'max_transfer_bytes': bus_config.get('max_transfer_bytes', 4092),
+        'dma_burst_size': bus_config.get('dma_burst_size', 64),
+    }
+
+    io_config = sub_config.get('io_config', {})
+    io_config_parsed = {
+        'cs_gpio_num': io_config.get('cs_gpio_num', -1),
+        'pclk_hz': io_config.get('pclk_hz', 10000000),
+        'trans_queue_depth': io_config.get('trans_queue_depth', 10),
+        'lcd_cmd_bits': io_config.get('lcd_cmd_bits', 8),
+        'lcd_param_bits': io_config.get('lcd_param_bits', 8),
+        'dc_levels': {
+            'dc_idle_level': io_config.get('dc_levels', {}).get('dc_idle_level', 0),
+            'dc_cmd_level': io_config.get('dc_levels', {}).get('dc_cmd_level', 0),
+            'dc_dummy_level': io_config.get('dc_levels', {}).get('dc_dummy_level', 0),
+            'dc_data_level': io_config.get('dc_levels', {}).get('dc_data_level', 1),
+        },
+        'flags': {
+            'cs_active_high': io_config.get('flags', {}).get('cs_active_high', False),
+            'reverse_color_bits': io_config.get('flags', {}).get('reverse_color_bits', False),
+            'swap_color_bytes': io_config.get('flags', {}).get('swap_color_bytes', False),
+            'pclk_active_neg': io_config.get('flags', {}).get('pclk_active_neg', False),
+            'pclk_idle_low': io_config.get('flags', {}).get('pclk_idle_low', False),
+        }
+    }
+
+    panel_config = sub_config.get('panel_config', {})
+    panel_config_parsed = {
+        'reset_gpio_num': panel_config.get('reset_gpio_num', -1),
+        'rgb_ele_order': panel_config.get('rgb_ele_order', 'LCD_RGB_ELEMENT_ORDER_RGB'),
+        'data_endian': panel_config.get('data_endian', 'LCD_RGB_DATA_ENDIAN_BIG'),
+        'bits_per_pixel': panel_config.get('bits_per_pixel', 16),
+        'flags': {
+            'reset_active_high': panel_config.get('flags', {}).get('reset_active_high', False)
+        },
+        'vendor_config': panel_config.get('vendor_config', '')
+    }
+
+    return {
+        'bus_config': bus_config_parsed,
+        'io_config': io_config_parsed,
+        'panel_config': panel_config_parsed,
+    }
+
 def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     """Parse LCD Display device configuration from YAML"""
     sub_type = full_config.get('sub_type')
@@ -465,7 +520,7 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
         raise ValueError(f"LCD Display device '{name}' is missing required 'sub_type' field")
 
     # Validate sub_type value
-    if sub_type not in ['dsi', 'spi', 'parlio', 'rgb', 'rgb_3wire_spi']:
+    if sub_type not in ['dsi', 'spi', 'parlio', 'rgb', 'rgb_3wire_spi', 'i80']:
         raise ValueError(f"LCD Display device '{name}' has invalid 'sub_type' value '{sub_type}'")
 
     # Parse sub configuration based on sub_type and extract common parameters
@@ -553,6 +608,19 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
                                  _rgb_bits_per_pixel_from_color_format(panel_config.get('in_color_format'), 16)),
             ),
         )
+    elif sub_type == 'i80':
+        sub_cfg = parse_i80_sub_config(full_config, peripherals_dict)
+        sub_cfg_union = {'i80': sub_cfg}
+        lcd_width = full_config.get('config').get('x_max', 240)
+        lcd_height = full_config.get('config').get('y_max', 280)
+        swap_xy = full_config.get('config').get('swap_xy', False)
+        mirror_x = full_config.get('config').get('mirror_x', False)
+        mirror_y = full_config.get('config').get('mirror_y', False)
+        need_reset = full_config.get('config').get('need_reset', True)
+        invert_color = full_config.get('config').get('invert_color', False)
+        rgb_ele_order = sub_cfg.get('panel_config', {}).get('rgb_ele_order', 'LCD_RGB_ELEMENT_ORDER_RGB')
+        data_endian = sub_cfg.get('panel_config', {}).get('data_endian', 'LCD_RGB_DATA_ENDIAN_BIG')
+        bits_per_pixel = sub_cfg.get('panel_config', {}).get('bits_per_pixel', 16)
     else:
         raise ValueError(f'Unsupported sub_type: {sub_type}')
 

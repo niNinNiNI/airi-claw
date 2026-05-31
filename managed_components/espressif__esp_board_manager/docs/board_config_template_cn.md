@@ -49,11 +49,14 @@ devices:
   - [录音（ADC，`adc_enabled: true`）](#录音adcadc_enabled-true)
   - [全双工（同一颗 Codec 芯片）](#全双工同一颗-codec-芯片)
   - [无外部 Codec 的录音和播放](#无外部-codec-的录音和播放)
+  - [PDM 数字麦克风](#pdm-数字麦克风)
+  - [PDM 扬声器](#pdm-扬声器)
   - [I2S 更多详细配置](#i2s-更多详细配置)
 - [LCD（`display_lcd`）](#lcddisplay_lcd)
   - [DSI（`sub_type: dsi`）](#dsisub_type-dsi)
   - [SPI（`sub_type: spi`）](#spisub_type-spi)
   - [PARLIO（`sub_type: parlio`）](#parliosub_type-parlio)
+  - [I80（`sub_type: i80`）](#i80sub_type-i80)
 - [LEDC 背光（`ledc_ctrl`）](#ledc-背光ledc_ctrl)
 - [LCD Touch（`lcd_touch_i2c`）](#lcd-touchlcd_touch_i2c)
 - [Camera（`camera`）](#cameracamera)
@@ -197,9 +200,170 @@ devices:
 
 ### 无外部 Codec 的录音和播放
 
-上述两个示例以**外接 Codec + I2S** 为主。若无需使用 Codec 芯片，直接使用 **内部模数转换（ADC）采集音频** 或 **PDM 直驱扬声器** 等模式，设备字段以 [dev_audio_codec.yaml](../devices/dev_audio_codec/dev_audio_codec.yaml) 中 **ADC Mic Usage Mode** 为准；
+将 `chip` 设为 `internal` 时，`audio_codec` 不通过 `esp_codec_dev` 驱动初始化外部 Codec 芯片，适用于无外部 Codec 芯片、或 Codec 芯片无需 I2C 软件配置即可工作的场景。本节展示内部 ADC 麦克风的两种配置方式；PDM 直驱扬声器见「[PDM 扬声器](#pdm-扬声器)」节。
 
-**板级参考**：[esp32_c3_lyra/board_devices.yaml](../boards/esp32_c3_lyra/board_devices.yaml)、[esp32_c3_lyra/board_peripherals.yaml](../boards/esp32_c3_lyra/board_peripherals.yaml)（复用 `adc` 外设或 `adc_local_cfg`）。
+**板级参考**：[esp32_c3_lyra/board_devices.yaml](../boards/esp32_c3_lyra/board_devices.yaml)、[esp32_c3_lyra/board_peripherals.yaml](../boards/esp32_c3_lyra/board_peripherals.yaml)
+
+**复用 `adc` 外设**
+
+在 `board_peripherals.yaml` 中独立声明 `adc` 外设，设备侧直接引用：
+
+**`board_peripherals.yaml`**：
+
+```yaml
+  - name: adc_audio_in
+    type: adc
+    role: continuous
+    config:
+      unit_id: ADC_UNIT_1               # [TO_BE_CONFIRMED] ADC unit
+      atten: ADC_ATTEN_DB_12            # [TO_BE_CONFIRMED] 衰减系数
+      bit_width: ADC_BITWIDTH_12        # [TO_BE_CONFIRMED] 采样位宽
+      max_store_buf_size: 1024          # [TO_BE_CONFIRMED] 存储缓冲区大小（字节）
+      conv_frame_size: 256              # [TO_BE_CONFIRMED] 每帧转换字节数
+      format: ADC_DIGI_OUTPUT_FORMAT_TYPE2  # [TO_BE_CONFIRMED]
+      conv_mode: ADC_CONV_SINGLE_UNIT_1     # [TO_BE_CONFIRMED]
+      channel_list: [0]                 # [TO_BE_CONFIRMED] ADC 通道列表
+```
+
+**`board_devices.yaml`**：
+
+```yaml
+  - name: audio_adc
+    chip: internal
+    type: audio_codec
+    config:
+      adc_enabled: true
+      dac_enabled: false
+    peripherals:
+      - name: adc_audio_in
+```
+
+**本地 ADC 配置（`adc_local_cfg`）**
+
+无需独立声明 `adc` 外设，由 `audio_codec` 内部创建 ADC continuous 句柄：
+
+**`board_devices.yaml`**（无需 `board_peripherals.yaml` 条目）：
+
+```yaml
+  - name: audio_adc
+    chip: internal
+    type: audio_codec
+    config:
+      adc_enabled: true
+      dac_enabled: false
+      adc_local_cfg:
+        channel_list: [0]               # [TO_BE_CONFIRMED] ADC 通道列表
+        sample_rate_hz: 16000           # [TO_BE_CONFIRMED] 采样率（Hz）
+        max_store_buf_size: 1024        # [TO_BE_CONFIRMED]
+        conv_frame_size: 256            # [TO_BE_CONFIRMED]
+        unit_id: ADC_UNIT_1             # [TO_BE_CONFIRMED]
+        atten: ADC_ATTEN_DB_12          # [TO_BE_CONFIRMED]
+        bit_width: SOC_ADC_DIGI_MAX_BITWIDTH  # [TO_BE_CONFIRMED]
+```
+
+### PDM 数字麦克风
+
+PDM 数字麦克风通过 I2S PDM 接口与 SoC 直接相连，无需外部 Codec 芯片与 I2C 控制接口。外设侧将 `format` 设为 `pdm-in`，设备侧使用 `chip: internal`。PDM 模式没有 `bclk` 和 `ws` 引脚，仅需 `clk` 和 `din` 两个引脚。
+
+**板级参考**：[esp32_p4_eye/board_peripherals.yaml](../boards/esp32_p4_eye/board_peripherals.yaml)、[esp32_p4_eye/board_devices.yaml](../boards/esp32_p4_eye/board_devices.yaml)
+
+**`board_peripherals.yaml`**：
+
+```yaml
+  - name: i2s_audio_in
+    type: i2s
+    role: master
+    format: pdm-in
+    config:
+      port: 0
+      sample_rate_hz: 16000             # [TO_BE_CONFIRMED] 采样率（Hz）
+      data_bit_width: 16                # [TO_BE_CONFIRMED] 数据位宽
+      slot_mode: I2S_SLOT_MODE_MONO     # [TO_BE_CONFIRMED] 单声道/立体声
+      # Valid values: I2S_SLOT_MODE_MONO / I2S_SLOT_MODE_STEREO
+      slot_mask: I2S_PDM_SLOT_LEFT      # [TO_BE_CONFIRMED] PDM slot 选择
+      # Valid values: I2S_PDM_SLOT_LEFT / I2S_PDM_SLOT_RIGHT / I2S_PDM_SLOT_BOTH
+      dn_sample_mode: I2S_PDM_DSR_8S    # [TO_BE_CONFIRMED] 下采样模式
+      # Valid values: I2S_PDM_DSR_8S / I2S_PDM_DSR_16S
+      hp_en: true                       # [TO_BE_CONFIRMED] 高通滤波使能
+      hp_cut_off_freq_hz: 35.5          # [TO_BE_CONFIRMED] 高通截止频率（Hz）
+      amplify_num: 1                    # [TO_BE_CONFIRMED] 增益倍数
+      pins:
+        clk: 22                         # [IO] PDM CLK pin
+        din: 21                         # [IO] PDM DIN pin
+```
+
+**`board_devices.yaml`**：
+
+```yaml
+  - name: audio_adc
+    chip: internal
+    type: audio_codec
+    # power_ctrl_device: mic_power_ctrl   # 可选：麦克风电源控制设备名
+    config:
+      adc_enabled: true
+      dac_enabled: false
+      adc_max_channel: 1                  # [TO_BE_CONFIRMED] 最大麦克风通道数
+      adc_channel_mask: "1"               # [TO_BE_CONFIRMED] 通道掩码，按位对应通道（"1" 表示通道 0）
+      adc_init_gain: 0                    # [TO_BE_CONFIRMED] 初始增益（dB，支持 0 / 6 / 18 / 30）
+    peripherals:
+      - name: i2s_audio_in
+```
+
+### PDM 扬声器
+
+I2S PDM 输出可直接驱动 PDM 扬声器或 PDM 功放，无需外部 Codec 芯片。外设侧将 `format` 设为 `pdm-out`，设备侧使用 `chip: internal`。PDM TX 模式只需 `dout` 引脚，`clk` 引脚视硬件而定（不使用时填 `-1`）。
+
+**板级参考**：[esp32_c3_lyra/board_peripherals.yaml](../boards/esp32_c3_lyra/board_peripherals.yaml)、[esp32_c3_lyra/board_devices.yaml](../boards/esp32_c3_lyra/board_devices.yaml)
+
+**`board_peripherals.yaml`**：
+
+```yaml
+  - name: i2s_audio_out
+    type: i2s
+    role: master
+    format: pdm-out
+    config:
+      sample_rate_hz: 16000             # [TO_BE_CONFIRMED] 采样率（Hz）
+      data_bit_width: 16                # [TO_BE_CONFIRMED] 数据位宽
+      slot_mode: I2S_SLOT_MODE_MONO     # [TO_BE_CONFIRMED] 单声道/立体声
+      # Valid values: I2S_SLOT_MODE_MONO / I2S_SLOT_MODE_STEREO
+      slot_mask: I2S_PDM_SLOT_LEFT      # [TO_BE_CONFIRMED] PDM slot 选择
+      # Valid values: I2S_PDM_SLOT_LEFT / I2S_PDM_SLOT_RIGHT / I2S_PDM_SLOT_BOTH
+      line_mode: I2S_PDM_TX_ONE_LINE_CODEC  # [TO_BE_CONFIRMED] 单线/双线输出模式
+      # Valid values: I2S_PDM_TX_ONE_LINE_CODEC / I2S_PDM_TX_ONE_LINE_DAC / I2S_PDM_TX_TWO_LINE_DAC
+      up_sample_fp: 960                 # [TO_BE_CONFIRMED] 上采样参数 fp
+      up_sample_fs: 441                 # [TO_BE_CONFIRMED] 上采样参数 fs
+      sd_prescale: 0                    # [TO_BE_CONFIRMED]
+      sd_scale: I2S_PDM_SIG_SCALING_MUL_4   # [TO_BE_CONFIRMED] Sigma-delta 缩放
+      hp_scale: I2S_PDM_SIG_SCALING_MUL_4   # [TO_BE_CONFIRMED]
+      lp_scale: I2S_PDM_SIG_SCALING_MUL_4   # [TO_BE_CONFIRMED]
+      sinc_scale: I2S_PDM_SIG_SCALING_MUL_4 # [TO_BE_CONFIRMED]
+      hp_en: false                      # [TO_BE_CONFIRMED] 高通滤波使能
+      hp_cut_off_freq_hz: 35.5          # [TO_BE_CONFIRMED] 高通截止频率（Hz）
+      sd_dither: 0                      # [TO_BE_CONFIRMED]
+      sd_dither2: 1                     # [TO_BE_CONFIRMED]
+      pins:
+        clk: -1                         # [IO] PDM CLK pin（-1 表示不使用）
+        dout: 3                         # [IO] PDM data output pin
+```
+
+**`board_devices.yaml`**：
+
+```yaml
+  - name: audio_dac
+    chip: internal
+    type: audio_codec
+    config:
+      dac_enabled: true
+      adc_enabled: false
+    peripherals:
+      - name: i2s_audio_out
+      - name: gpio_pa_control           # 可选：PA 控制引脚
+        gain: 6                         # [TO_BE_CONFIRMED] PA 增益（dB）
+        active_level: 1                 # PA 控制引脚有效电平
+```
+
+若扬声器有 PA 控制引脚，需在 `board_peripherals.yaml` 中额外定义 `gpio_pa_control` 外设（`type: gpio`），参考 [esp32_c3_lyra/board_peripherals.yaml](../boards/esp32_c3_lyra/board_peripherals.yaml)。
 
 ### I2S 更多详细配置
 
@@ -379,6 +543,55 @@ PARLIO LCD 不需要显式依赖外设。
         data_endian: LCD_RGB_DATA_ENDIAN_LITTLE   # [TO_BE_CONFIRMED] Data endianness (default: LITTLE)
         bits_per_pixel: 16                        # [TO_BE_CONFIRMED] Bits per pixel (default: 16)
 ```
+
+---
+
+### I80（`sub_type: i80`）
+
+I80 LCD 使用专用的 Intel 8080 并行 LCD 外设，不需要单独的外设条目；I80 总线在设备的 `bus_config` 块中直接配置。
+
+**`board_devices.yaml`**
+
+```yaml
+  - name: display_lcd
+    type: display_lcd
+    sub_type: i80
+    chip: st7789                                # [TO_BE_CONFIRMED] 需与 lcd_panel_factory_entry_t + 驱动匹配
+    dependencies:
+      espressif/esp_lcd_st7789: "*"             # [TO_BE_CONFIRMED]
+    config:
+      x_max: 240                                # [TO_BE_CONFIRMED] 水平分辨率
+      y_max: 280                                # [TO_BE_CONFIRMED] 垂直分辨率
+      invert_color: true                        # 颜色反转标志（默认：true）
+      need_reset: true                          # 初始化时是否复位面板（默认：true）
+
+      # esp_lcd_i80_bus_config_t 字段
+      bus_config:
+        dc_gpio_num: -1                         # [IO] D/C 线 GPIO
+        wr_gpio_num: -1                         # [IO] WR 线 GPIO
+        clk_src: 0                              # 时钟源（默认：0）
+        data_gpio_nums: []                      # [IO] 数据线 GPIO 列表（8 位用 D0-D7；16 位用 D0-D15）
+        bus_width: 8                            # [TO_BE_CONFIRMED] 数据线宽度，8 或 16（默认：8）
+        max_transfer_bytes: 4092                # [TO_BE_CONFIRMED] 最大传输字节（默认：4092）
+        dma_burst_size: 64                      # DMA burst 大小（字节，默认：64）
+
+      # esp_lcd_panel_io_i80_config_t 字段
+      io_config:
+        cs_gpio_num: -1                         # [IO] CS 线 GPIO（独占总线时填 -1）
+        pclk_hz: 10000000                       # [TO_BE_CONFIRMED] 像素时钟频率（默认：10MHz）
+        trans_queue_depth: 10                   # 事务队列深度（默认：10）
+        lcd_cmd_bits: 8                         # LCD 命令位宽（默认：8）
+        lcd_param_bits: 8                       # LCD 参数位宽（默认：8）
+
+      # esp_lcd_panel_dev_config_t 字段
+      panel_config:
+        reset_gpio_num: -1                        # [IO] 复位 GPIO（默认：-1）
+        rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB  # [TO_BE_CONFIRMED] RGB 字节序（默认：RGB）
+        data_endian: LCD_RGB_DATA_ENDIAN_BIG      # [TO_BE_CONFIRMED] 数据端序（默认：BIG）
+        bits_per_pixel: 16                        # [TO_BE_CONFIRMED] 每像素位数（默认：16）
+```
+
+完整字段定义见 [`dev_display_lcd.yaml`](../devices/dev_display_lcd/dev_display_lcd.yaml)。
 
 ---
 

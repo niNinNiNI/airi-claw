@@ -24,6 +24,8 @@ static const char *TAG = "BOARD_DEVICE";
 extern const esp_board_device_desc_t g_esp_board_devices[];
 extern esp_board_device_handle_t g_esp_board_device_handles[];
 
+static esp_err_t esp_board_device_deinit_internal(const char *name, bool ignore_dep_check);
+
 typedef struct cfg_override_node {
     struct cfg_override_node *next;
     const char               *name;
@@ -99,6 +101,27 @@ static const void *find_effective_cfg(const char *name, const esp_board_device_d
     return desc->cfg;
 }
 
+static esp_err_t check_active_device_dependents(const char *name)
+{
+    esp_board_device_handle_t *check_h = g_esp_board_device_handles;
+
+    while (check_h) {
+        if (check_h->device_handle) {
+            const esp_board_device_desc_t *check_d = esp_board_find_device_desc(check_h->name);
+            if (check_d) {
+                for (int i = 0; i < check_d->depends_on_num; i++) {
+                    if (strcmp(check_d->depends_on[i], name) == 0) {
+                        ESP_LOGE(TAG, "Cannot deinit %s, it is in use by %s", name, check_d->name);
+                        return ESP_BOARD_ERR_DEVICE_DEP_IN_USE;
+                    }
+                }
+            }
+        }
+        check_h = check_h->next;
+    }
+    return ESP_OK;
+}
+
 esp_err_t esp_board_device_init(const char *name)
 {
     ESP_BOARD_RETURN_ON_FALSE(name, ESP_BOARD_ERR_DEVICE_INVALID_ARG, TAG, "name is null");
@@ -125,21 +148,37 @@ esp_err_t esp_board_device_init(const char *name)
     /* Increment reference count */
     handle->ref_count++;
 
-    /* Initialize device if not already initialized */
     if (handle->device_handle) {
         ESP_LOGI(TAG, "Device %s already initialized, ref_count: %d", name, handle->ref_count);
         return ESP_OK;
-    } else {
-        uint16_t cfg_size = 0;
-        const void *cfg = find_effective_cfg(name, desc, &cfg_size);
+    }
 
-        ret = handle->init((void *)cfg, cfg_size, &handle->device_handle);
+    /* First-time initialization: initialize dependencies first */
+    for (int i = 0; i < desc->depends_on_num; i++) {
+        ret = esp_board_device_init(desc->depends_on[i]);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to init device: %s", name);
-            handle->ref_count--;  /* Decrement ref_count on failure */
+            ESP_LOGE(TAG, "Failed to init dependency %s for device %s", desc->depends_on[i], name);
+            handle->ref_count--;
+            for (int j = 0; j < i; j++) {
+                esp_board_device_deinit_internal(desc->depends_on[j], true);
+            }
             return ret;
         }
     }
+
+    uint16_t cfg_size = 0;
+    const void *cfg = find_effective_cfg(name, desc, &cfg_size);
+
+    ret = handle->init((void *)cfg, cfg_size, &handle->device_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init device: %s", name);
+        handle->ref_count--;  /* Decrement ref_count on failure */
+        for (int i = 0; i < desc->depends_on_num; i++) {
+            esp_board_device_deinit_internal(desc->depends_on[i], true);
+        }
+        return ret;
+    }
+
     ESP_LOGD(TAG, "initialized device %s ref_count: %d device_handle:%p", name, handle->ref_count, handle->device_handle);
     return ret;
 }
@@ -292,15 +331,27 @@ esp_err_t esp_board_device_get_i2c_effective_addr(const char *device_name, uint1
     return ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED;
 }
 
-esp_err_t esp_board_device_deinit(const char *name)
+static esp_err_t esp_board_device_deinit_internal(const char *name, bool ignore_dep_check)
 {
     ESP_BOARD_RETURN_ON_FALSE(name, ESP_BOARD_ERR_DEVICE_INVALID_ARG, TAG, "name is null");
 
     /* Find device handle */
     esp_board_device_handle_t *handle = esp_board_find_device_handle(name);
     ESP_BOARD_RETURN_ON_DEVICE_NOT_FOUND(handle, name, TAG, "Device handle %s not found", name);
-    if (!handle->device_handle) {
-        ESP_LOGW(TAG, "Device %s not initialized", name);
+    if (!handle->device_handle && handle->ref_count == 0) {
+        ESP_LOGD(TAG, "Device %s not initialized or already deinitialized", name);
+        return ESP_OK;
+    }
+
+    if (!ignore_dep_check) {
+        esp_err_t ret = check_active_device_dependents(name);
+        if (ret != ESP_OK) {
+            return ret;
+        }
+    }
+
+    if (handle->ref_count == 0) {
+        ESP_LOGW(TAG, "Device %s ref count is already 0 but deinit is called", name);
         return ESP_OK;
     }
 
@@ -321,13 +372,26 @@ esp_err_t esp_board_device_deinit(const char *name)
         esp_err_t ret = handle->deinit(handle->device_handle);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to deinit device: %s", name);
+            handle->ref_count++;
             return ret;
         }
         handle->device_handle = NULL;
+
+        for (int i = 0; i < desc->depends_on_num; i++) {
+            esp_err_t dep_ret = esp_board_device_deinit_internal(desc->depends_on[i], true);
+            if (dep_ret != ESP_OK) {
+                ESP_LOGW(TAG, "Failed to release dependency %s of %s", desc->depends_on[i], name);
+            }
+        }
     } else {
-        ESP_LOGW(TAG, "Device %s still has %d references, not deinitializing", name, handle->ref_count);
+        ESP_LOGD(TAG, "Device %s still has %d references, not deinitializing", name, handle->ref_count);
     }
     return ESP_OK;
+}
+
+esp_err_t esp_board_device_deinit(const char *name)
+{
+    return esp_board_device_deinit_internal(name, false);
 }
 
 esp_err_t esp_board_device_show(const char *name)
@@ -394,20 +458,70 @@ esp_err_t esp_board_device_init_all(void)
 
 esp_err_t esp_board_device_deinit_all(void)
 {
-    const esp_board_device_desc_t *desc = g_esp_board_devices;
     esp_err_t ret;
+    bool made_progress;
+    int total_devices_freed = 0;
 
-    /* Deinitialize all devices in the list */
-    while (desc && desc->name) {
-        esp_board_device_handle_t *handle = esp_board_find_device_handle(desc->name);
-        do {
-            ret = esp_board_device_deinit(desc->name);
-            if (ret != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to deinitialize device: %s", desc->name);
+    do {
+        made_progress = false;
+        esp_board_device_handle_t *handle = g_esp_board_device_handles;
+
+        while (handle) {
+            if (handle->ref_count > 0 && handle->device_handle != NULL) {
+                bool has_active_dependent = false;
+                esp_board_device_handle_t *dep_check = g_esp_board_device_handles;
+                while (dep_check) {
+                    if (dep_check->device_handle && dep_check != handle) {
+                        const esp_board_device_desc_t *dep_desc = esp_board_find_device_desc(dep_check->name);
+                        if (dep_desc) {
+                            for (int i = 0; i < dep_desc->depends_on_num; i++) {
+                                if (strcmp(dep_desc->depends_on[i], handle->name) == 0) {
+                                    has_active_dependent = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (has_active_dependent) {
+                        break;
+                    }
+                    dep_check = dep_check->next;
+                }
+                if (has_active_dependent) {
+                    ESP_LOGD(TAG, "Auto-deinit skipping %s (still has active dependents)", handle->name);
+                    handle = handle->next;
+                    continue;
+                }
+
+                ret = esp_board_device_deinit_internal(handle->name, true);
+                if (ret == ESP_OK) {
+                    made_progress = true;
+                    total_devices_freed++;
+                    ESP_LOGD(TAG, "Auto-deinit processed device: %s", handle->name);
+                } else {
+                    ESP_LOGE(TAG, "Failed to deinitialize device: %s (err: 0x%x)", handle->name, ret);
+                }
             }
-        } while (handle->ref_count > 0);
-        desc = desc->next;
+            handle = handle->next;
+        }
+    } while (made_progress);
+
+    int remaining = 0;
+    esp_board_device_handle_t *handle = g_esp_board_device_handles;
+    while (handle) {
+        if (handle->ref_count > 0 || handle->device_handle != NULL) {
+            remaining++;
+            ESP_LOGW(TAG, "Warning: Device %s was left initialized (ref_count: %d)", handle->name, handle->ref_count);
+        }
+        handle = handle->next;
     }
+
+    if (remaining > 0) {
+        ESP_LOGE(TAG, "Completed deinit_all with %d items successfully freed, but %d devices remain.", total_devices_freed, remaining);
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Successfully deinitialized all devices (%d total)", total_devices_freed);
     return ESP_OK;
 }
 

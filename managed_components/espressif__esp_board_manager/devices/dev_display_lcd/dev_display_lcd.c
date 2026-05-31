@@ -36,6 +36,9 @@ int dev_display_lcd_sub_rgb_deinit_with_config(void *device_handle, const dev_di
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
 int dev_display_lcd_sub_rgb_3wire_spi_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg);
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_I80_SUPPORT
+int dev_display_lcd_sub_i80_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg);
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_I80_SUPPORT */
 
 static const lcd_deinit_with_config_entry_t s_lcd_deinit_entries[] = {
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
@@ -53,6 +56,9 @@ static const lcd_deinit_with_config_entry_t s_lcd_deinit_entries[] = {
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT
     {ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB_3WIRE_SPI, dev_display_lcd_sub_rgb_3wire_spi_deinit_with_config},
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_3WIRE_SPI_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_I80_SUPPORT
+    {ESP_BOARD_DEVICE_LCD_SUB_TYPE_I80, dev_display_lcd_sub_i80_deinit_with_config},
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_I80_SUPPORT */
     {NULL, NULL},
 };
 
@@ -100,7 +106,7 @@ int dev_display_lcd_init(void *cfg, int cfg_size, void **device_handle)
     const dev_display_lcd_config_t *config = (const dev_display_lcd_config_t *)cfg;
     ESP_LOGI(TAG, "Initializing LCD display: %s, chip: %s, sub_type: %s",
              config->name, config->chip, config->sub_type);
-    const esp_board_entry_desc_t *entry_desc = esp_board_entry_find_desc(config->sub_type);
+    const esp_board_entry_desc_t *entry_desc = esp_board_entry_find_subtype_desc("display_lcd", config->sub_type);
     if (entry_desc == NULL) {
         ESP_LOGE(TAG, "Failed to find sub device: %s", config->sub_type);
         return -1;

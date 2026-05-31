@@ -86,4 +86,4 @@ int dev_camera_sub_dvp_deinit(void *device_handle)
     return ret == ESP_OK ? 0 : -1;
 }
 
-ESP_BOARD_ENTRY_IMPLEMENT(dvp, dev_camera_sub_dvp_init, dev_camera_sub_dvp_deinit);
+ESP_BOARD_SUBTYPE_ENTRY_IMPLEMENT(camera, dvp, dev_camera_sub_dvp_init, dev_camera_sub_dvp_deinit);

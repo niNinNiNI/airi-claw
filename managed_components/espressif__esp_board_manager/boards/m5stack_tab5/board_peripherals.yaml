@@ -62,7 +62,7 @@ peripherals:
       bus_id: 0
       data_lanes: 2
       phy_clk_src: 0
-      lane_bit_rate_mbps: 1000
+      lane_bit_rate_mbps: 965     # compromise rate for both ILI9881C and ST7123 panels
 
   # Backlight Control
   - name: ledc_backlight
