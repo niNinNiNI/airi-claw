@@ -2,7 +2,7 @@
 
 ## 概述
 
-开发者 5 负责 AIRI Edge Agent 的**智能代理逻辑层与脚本运行时**，是整个设备的"大脑"所在。该层包括 Lua 脚本引擎的集成与 API 封装、Skills（技能）系统、Capabilities（能力）系统、Memory（长期记忆/知识库）管理、Scheduler（任务调度）、Router Rules（路由规则）以及语音模块的 Capability 定义。该开发者让设备从一个被动 Web 服务器转变为一个可编程、可扩展的 AI 代理。
+开发者 5 负责 爱莉 Edge Agent 的**智能代理逻辑层与脚本运行时**，是整个设备的"大脑"所在。该层包括 Lua 脚本引擎的集成与 API 封装、Skills（技能）系统、Capabilities（能力）系统、Memory（长期记忆/知识库）管理、Scheduler（任务调度）、Router Rules（路由规则）以及语音模块的 Capability 定义。该开发者让设备从一个被动 Web 服务器转变为一个可编程、可扩展的 AI 代理。
 
 ---
 

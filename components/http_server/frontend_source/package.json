@@ -1,7 +1,7 @@
 {
   "name": "airi-frontend",
   "version": "0.1.0",
-  "description": "SolidJS-based web UI for AIRI device settings",
+  "description": "SolidJS-based web UI for 爱莉 device settings",
   "type": "module",
   "private": true,
   "scripts": {

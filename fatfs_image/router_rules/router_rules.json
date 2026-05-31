@@ -44,7 +44,7 @@
         "input": {
           "channel": "{{event.source_channel}}",
           "chat_id": "{{event.chat_id}}",
-          "message": "✨ AIRI 正在处理..."
+          "message": "✨ 爱莉 正在处理..."
         }
       }
     ]

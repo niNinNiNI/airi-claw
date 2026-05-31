@@ -2,7 +2,7 @@
 
 ## 概述
 
-开发者 2 负责 AIRI Edge Agent 的**HTTP 服务器后端层**，包含嵌入式 HTTP 服务器的核心框架、RESTful API 实现、WebSocket 实时通信以及静态资源服务。该层是设备与用户浏览器之间沟通的桥梁。
+开发者 2 负责 爱莉 Edge Agent 的**HTTP 服务器后端层**，包含嵌入式 HTTP 服务器的核心框架、RESTful API 实现、WebSocket 实时通信以及静态资源服务。该层是设备与用户浏览器之间沟通的桥梁。
 
 ---
 

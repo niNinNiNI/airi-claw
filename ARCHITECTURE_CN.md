@@ -590,7 +590,7 @@ typedef struct {
 在 [app_claw.c:44-68](components/common/app_claw/app_claw.c) 中定义，核心指令为：
 
 ```
-"You are the AIRI. "
+"You are the 爱莉. "
 "Answer briefly and plainly. "
 "Treat Skills List as a catalog of optional skills. "
 "Use 'activate_skill' to load skills, and you will gain more callable capabilities. "
@@ -678,7 +678,7 @@ typedef struct {
 LLM 不是真的有"记忆"，而是每次推理时把**整个对话历史**都作为输入发送给它。这个输入的总长度限制叫上下文窗口（如 128K tokens）。
 
 每次推理前发给 LLM 的内容包括：
-- **系统提示词**：定义 AI 的身份和行为规则（"你是 AIRI..."）
+- **系统提示词**：定义 AI 的身份和行为规则（"你是 爱莉..."）
 - **对话历史**：最近 N 轮的用户消息和 AI 回复
 - **可用工具列表**：JSON Schema 格式的工具定义
 - **长期记忆**：从记忆系统召回的相关信息

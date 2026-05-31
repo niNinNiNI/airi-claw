@@ -1,6 +1,6 @@
 # 什么是 Capability
 
-**Capability（能力）** 是 AIRI 中一切可被调用功能的统一抽象单元。每个 `cap_*` 组件向 `claw_cap` 注册一个或多个带有元数据的 **描述符（`claw_cap_descriptor_t`）**，系统在运行时通过统一入口路由调用。
+**Capability（能力）** 是 爱莉 中一切可被调用功能的统一抽象单元。每个 `cap_*` 组件向 `claw_cap` 注册一个或多个带有元数据的 **描述符（`claw_cap_descriptor_t`）**，系统在运行时通过统一入口路由调用。
 
 ## 角色分类
 
@@ -63,7 +63,7 @@ claw_cap_set_llm_visible_groups(VISIBLE_GROUPS, 3);
 
 > **提示：为什么不把所有 Capability 都暴露给 LLM？**
 >
-> 将大量 tool 描述符注入上下文会使 token 数量急剧增加，导致 LLM 推理质量下降，且增加延迟与成本。AIRI 通过 Skills 机制实现**「渐进式披露」**：用户（或 LLM 自身）按需激活 Skill，仅在需要时加载对应工具描述。
+> 将大量 tool 描述符注入上下文会使 token 数量急剧增加，导致 LLM 推理质量下降，且增加延迟与成本。爱莉 通过 Skills 机制实现**「渐进式披露」**：用户（或 LLM 自身）按需激活 Skill，仅在需要时加载对应工具描述。
 
 ## 调用路径
 

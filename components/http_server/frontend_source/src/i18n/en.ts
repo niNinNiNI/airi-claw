@@ -1,5 +1,5 @@
 export const en = {
-  docTitle: 'AIRI Settings',
+  docTitle: '爱莉 Settings',
   pageTitle: 'Device Settings',
   pageSubtitle:
     'View system operation basic information and status',
@@ -27,7 +27,7 @@ export const en = {
   navFiles: 'Files',
   navWebIm: 'Web Chat',
 
-  webimDesc: 'Interact with AIRI in real time via WebSocket.',
+  webimDesc: 'Interact with 爱莉 in real time via WebSocket.',
   webimSend: 'Send',
   webimOnline: 'Online',
   webimPlaceholder: 'Message…',
@@ -170,7 +170,7 @@ export const en = {
 
   sectionSearch: 'Search (Optional)',
   searchNote:
-    'If set, AIRI can search online. Tip: Built-in weather skill also relies on online search.',
+    'If set, 爱莉 can search online. Tip: Built-in weather skill also relies on online search.',
   searchBraveKey: 'Brave Search API Key',
   searchTavilyKey: 'Tavily API Key',
 

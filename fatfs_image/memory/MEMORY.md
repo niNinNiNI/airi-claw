@@ -1,3 +1,3 @@
 # Long-term Memory
 
-(empty - AIRI will write memories here as it learns)
+(empty - 爱莉 will write memories here as it learns)

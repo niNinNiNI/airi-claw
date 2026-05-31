@@ -280,7 +280,7 @@ export const Sidebar: Component<SidebarProps> = (props) => {
               when={isMobileDrawer()}
               fallback={
                 <span class="block text-[0.7rem] font-bold text-[var(--color-text-muted)] truncate">
-                  AIRI Web Config
+                  爱莉 Web Config
                 </span>
               }
             >
