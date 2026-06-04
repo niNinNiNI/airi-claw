@@ -85,7 +85,6 @@ static app_stream_adapter_handle_t s_stream_adapter;
 
 static char *s_playlist[MAX_PLAYLIST_ITEMS];
 static int s_playlist_count;
-static int s_current_index;
 
 static TaskHandle_t s_video_task_handle;
 static bool s_running;

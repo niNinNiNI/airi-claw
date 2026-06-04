@@ -19,7 +19,8 @@
       "Read(//home/nini/ESP32-P4-WIFI6-Touch-LCD-4.3-main/examples/esp-idf/12_usb_extend_screen/components/bsp_extra/src/**)",
       "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/esp_lcd/include/**)",
       "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/hal/include/hal/**)",
-      "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/hal/esp32p4/include/hal/**)"
+      "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/hal/esp32p4/include/hal/**)",
+      "Read(//home/nini/.espressif/v5.5.4/esp-idf/components/esp_driver_cam/**)"
     ],
     "additionalDirectories": [
       "/home/nini/esp-claw-master_1/esp-claw-master/components/common/voice_ws_common",
@@ -35,7 +36,9 @@
       "/home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display/src",
       "/home/nini/esp-claw-master_1/esp-claw-master/components/common/ppa_mirror",
       "/home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_display",
-      "/tmp"
+      "/tmp",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/lua_modules/lua_module_camera/src",
+      "/home/nini/esp-claw-master_1/esp-claw-master/components/claw_capabilities/cap_im_platform"
     ]
   }
 }

@@ -1,8 +1,8 @@
-# 爱莉 Edge Agent 屏幕显示代码架构
+# Web 管理界面 — 前端架构文档
 
 ## 概述
 
-本项目（Edge Agent）的屏幕显示部分**不包含本地 LCD 驱动代码**。ESP32-P4 开发板上的屏幕显示（触摸 LCD）由 **ESP Board Manager** 和 **LVGL** 等 managed 组件驱动。**Edge Agent 自身不直接操作屏幕硬件**，而是作为一个**嵌入式 Web 服务器**，向外提供一套**基于 SolidJS 的 Web 端管理界面**。用户通过浏览器访问设备 IP 即可看到完整的 GUI。
+Edge Agent 内置一个**嵌入式 Web 服务器**，向外提供一套**基于 SolidJS 的 Web 端管理界面**。用户通过浏览器访问设备 IP 即可看到完整的 GUI 管理面板。硬件屏幕显示（LCD 驱动）由 ESP Board Manager 和 managed 组件驱动，详见 [硬件显示架构.md](硬件显示架构.md)。
 
 ## 技术栈
 
