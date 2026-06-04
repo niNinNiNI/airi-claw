@@ -1,0 +1,12 @@
+idf_component_register(
+    SRCS
+        "src/cap_asr.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        voice_ws_common
+        claw_cap
+        json
+        esp_codec_dev
+        esp_board_manager
+)

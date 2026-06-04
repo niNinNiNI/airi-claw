@@ -1,0 +1,11 @@
+{
+  "motion": "m04_wave",
+  "sourceFile": "motions/Hiyori_m04.motion3.json",
+  "frameCount": 62,
+  "fps": 15,
+  "durationMs": 4133,
+  "resolution": {
+    "width": 480,
+    "height": 800
+  }
+}

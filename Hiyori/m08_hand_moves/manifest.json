@@ -1,0 +1,11 @@
+{
+  "motion": "m08_hand_moves",
+  "sourceFile": "motions/Hiyori_m08.motion3.json",
+  "frameCount": 27,
+  "fps": 15,
+  "durationMs": 1800,
+  "resolution": {
+    "width": 480,
+    "height": 800
+  }
+}

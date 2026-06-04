@@ -1,0 +1,11 @@
+{
+  "motion": "m09_nod",
+  "sourceFile": "motions/Hiyori_m09.motion3.json",
+  "frameCount": 20,
+  "fps": 15,
+  "durationMs": 1333,
+  "resolution": {
+    "width": 480,
+    "height": 800
+  }
+}

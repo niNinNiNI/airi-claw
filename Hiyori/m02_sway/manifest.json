@@ -1,0 +1,11 @@
+{
+  "motion": "m02_sway",
+  "sourceFile": "motions/Hiyori_m02.motion3.json",
+  "frameCount": 85,
+  "fps": 15,
+  "durationMs": 5667,
+  "resolution": {
+    "width": 480,
+    "height": 800
+  }
+}

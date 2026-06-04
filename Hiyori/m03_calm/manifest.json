@@ -1,0 +1,11 @@
+{
+  "motion": "m03_calm",
+  "sourceFile": "motions/Hiyori_m03.motion3.json",
+  "frameCount": 59,
+  "fps": 15,
+  "durationMs": 3933,
+  "resolution": {
+    "width": 480,
+    "height": 800
+  }
+}

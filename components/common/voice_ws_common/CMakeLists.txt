@@ -1,0 +1,9 @@
+idf_component_register(
+    SRCS
+        "src/voice_ws_common.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        esp_websocket_client
+        json
+)

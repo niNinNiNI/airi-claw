@@ -1,0 +1,11 @@
+{
+  "motion": "m01_idle_shake",
+  "sourceFile": "motions/Hiyori_m01.motion3.json",
+  "frameCount": 66,
+  "fps": 15,
+  "durationMs": 4400,
+  "resolution": {
+    "width": 480,
+    "height": 800
+  }
+}

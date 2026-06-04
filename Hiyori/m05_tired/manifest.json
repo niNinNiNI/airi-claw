@@ -1,0 +1,11 @@
+{
+  "motion": "m05_tired",
+  "sourceFile": "motions/Hiyori_m05.motion3.json",
+  "frameCount": 124,
+  "fps": 15,
+  "durationMs": 8267,
+  "resolution": {
+    "width": 480,
+    "height": 800
+  }
+}

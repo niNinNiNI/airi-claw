@@ -1,0 +1,11 @@
+{
+  "motion": "m10_relaxed",
+  "sourceFile": "motions/Hiyori_m10.motion3.json",
+  "frameCount": 58,
+  "fps": 15,
+  "durationMs": 3867,
+  "resolution": {
+    "width": 480,
+    "height": 800
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "motion": "m06_slight_sway",
+  "sourceFile": "motions/Hiyori_m06.motion3.json",
+  "frameCount": 76,
+  "fps": 15,
+  "durationMs": 5067,
+  "resolution": {
+    "width": 480,
+    "height": 800
+  }
+}

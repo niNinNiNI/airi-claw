@@ -1,0 +1,11 @@
+{
+  "motion": "m07_breathing",
+  "sourceFile": "motions/Hiyori_m07.motion3.json",
+  "frameCount": 24,
+  "fps": 15,
+  "durationMs": 1600,
+  "resolution": {
+    "width": 480,
+    "height": 800
+  }
+}

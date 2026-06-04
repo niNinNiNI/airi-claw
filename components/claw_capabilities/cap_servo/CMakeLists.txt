@@ -1,0 +1,12 @@
+idf_component_register(
+    SRCS
+        "src/cap_servo.c"
+        "src/servo_mcpwm.c"
+        "src/motion.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        claw_cap
+        json
+        esp_driver_mcpwm
+)
