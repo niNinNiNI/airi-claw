@@ -159,7 +159,7 @@ menu "App Claw Config"
         config APP_CLAW_VOICE_SERVER_IP
             string "Voice Server IP Address"
             depends on APP_CLAW_CAP_VOICE || APP_CLAW_CAP_ASR
-            default "10.21.126.59"
+            default "10.123.222.59"
             help
                 IP address of the local voice WebSocket server (shared by TTS and ASR).
 

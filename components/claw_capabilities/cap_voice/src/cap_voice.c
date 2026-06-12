@@ -72,7 +72,6 @@ static volatile TaskHandle_t s_voice_process_task;
 #define OPUS_FRAME_QUEUE_LEN    2048
 #define VOICE_PROCESS_STACK     8192
 
-#define VOICE_DEFAULT_VOICE_TYPE "zh_female_qingxin"
 #define WS_CONNECT_TIMEOUT_MS    10000
 #define TTS_TIMEOUT_MS           120000
 #define OPUS_DECODE_BUF_SIZE     8192
@@ -80,7 +79,6 @@ static volatile TaskHandle_t s_voice_process_task;
 /* --- async TTS request queue --- */
 typedef struct {
     char text[2048];
-    char voice_type[64];
 } tts_request_t;
 
 #define TTS_REQUEST_QUEUE_LEN 2
@@ -285,7 +283,7 @@ static esp_err_t ensure_audio_dev(void)
         return ESP_FAIL;
     }
 
-    esp_codec_dev_set_out_vol(dev, 80);
+    esp_codec_dev_set_out_vol(dev, 100);
     esp_codec_dev_set_out_mute(dev, false); /* unmute in case ASR left it muted */
 
     s_codec_dev = dev;
@@ -886,7 +884,7 @@ static esp_err_t ensure_ws_connected(void)
 
 /* --- TTS request --- */
 
-static esp_err_t send_tts_request(const char *text, const char *voice_type)
+static esp_err_t send_tts_request(const char *text)
 {
     if (!voice_ws_is_connected()) {
         return ESP_ERR_INVALID_STATE;
@@ -897,8 +895,6 @@ static esp_err_t send_tts_request(const char *text, const char *voice_type)
 
     cJSON_AddStringToObject(root, "type", "tts_request");
     cJSON_AddStringToObject(root, "text", text);
-    cJSON_AddStringToObject(root, "voice",
-                            voice_type ? voice_type : VOICE_DEFAULT_VOICE_TYPE);
 
     char *json_str = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -918,7 +914,7 @@ static esp_err_t send_tts_request(const char *text, const char *voice_type)
 
 /* --- core TTS logic (shared by sync and async paths) --- */
 
-static esp_err_t do_tts(const char *text, const char *voice_type,
+static esp_err_t do_tts(const char *text,
                         char *output, size_t output_size)
 {
     if (!output || output_size == 0) {
@@ -988,7 +984,7 @@ static esp_err_t do_tts(const char *text, const char *voice_type,
     s_tts_result_text[0] = '\0';
     s_binary_frame_count = 0;
 
-    err = send_tts_request(text_copy, voice_type);
+    err = send_tts_request(text_copy);
     if (err != ESP_OK) {
         s_tts_active = false;
         snprintf(output, output_size,
@@ -1041,7 +1037,7 @@ static void tts_playback_task_fn(void *arg)
         }
 
         char output[256];
-        esp_err_t err = do_tts(req.text, req.voice_type, output, sizeof(output));
+        esp_err_t err = do_tts(req.text, output, sizeof(output));
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "Async TTS failed: %s", output);
         }
@@ -1070,15 +1066,11 @@ static esp_err_t cap_voice_execute(const char *input_json,
         return ESP_ERR_INVALID_ARG;
     }
 
-    cJSON *voice_item = cJSON_GetObjectItem(input, "voice");
-    const char *voice_type = cJSON_IsString(voice_item) ?
-                             voice_item->valuestring : NULL;
-
     char text_copy[2048];
     strlcpy(text_copy, text_item->valuestring, sizeof(text_copy));
     cJSON_Delete(input);
 
-    return do_tts(text_copy, voice_type, output, output_size);
+    return do_tts(text_copy, output, output_size);
 }
 
 /*
@@ -1119,13 +1111,6 @@ static esp_err_t cap_voice_send_message_execute(const char *input_json,
     tts_request_t req;
     strlcpy(req.text, text_item->valuestring, sizeof(req.text));
 
-    cJSON *voice_item = cJSON_GetObjectItem(input, "voice");
-    if (cJSON_IsString(voice_item) && voice_item->valuestring) {
-        strlcpy(req.voice_type, voice_item->valuestring, sizeof(req.voice_type));
-    } else {
-        req.voice_type[0] = '\0';
-    }
-
     cJSON_Delete(input);
 
     /* Non-blocking: if queue is full, drop oldest to make room for latest */
@@ -1152,8 +1137,7 @@ static const claw_cap_descriptor_t s_voice_descriptors[] = {
         .input_schema_json =
             "{\"type\":\"object\","
             "\"properties\":{"
-                "\"text\":{\"type\":\"string\",\"description\":\"Text to speak\"},"
-                "\"voice\":{\"type\":\"string\",\"description\":\"Voice type ID\"}"
+                "\"text\":{\"type\":\"string\",\"description\":\"Text to speak\"}"
             "},"
             "\"required\":[\"text\"]}",
         .execute = cap_voice_execute,
@@ -1169,8 +1153,7 @@ static const claw_cap_descriptor_t s_voice_descriptors[] = {
             "{\"type\":\"object\","
             "\"properties\":{"
                 "\"text\":{\"type\":\"string\",\"description\":\"Text to speak\"},"
-                "\"message\":{\"type\":\"string\",\"description\":\"Alternative text field\"},"
-                "\"voice\":{\"type\":\"string\",\"description\":\"Voice type ID\"}"
+                "\"message\":{\"type\":\"string\",\"description\":\"Alternative text field\"}"
             "},"
             "\"required\":[\"text\"]}",
         .execute = cap_voice_send_message_execute,
