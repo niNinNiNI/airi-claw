@@ -1,215 +1,141 @@
-<div align="center">
+# Aili Edge Agent — On-Device AI Agent on ESP32-P4
 
-  <a href="https://esp-claw.com/en/">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="./docs/src/assets/logos/logo-f.svg" />
-      <source media="(prefers-color-scheme: light)" srcset="./docs/src/assets/logos/logo.svg" />
-      <img alt="ESP-Claw logo" src="./docs/src/assets/logos/logo.svg" width="50%" />
-    </picture>
-  </a>
+> Author: **Jinghao Chang** ([@niNinNiNI](https://github.com/niNinNiNI))
+> Built on top of **[espressif/esp-claw](https://github.com/espressif/esp-claw)** (Apache-2.0), Espressif's official open-source framework
+> Timeline: May – Jun 2026 · **30 commits authored by me** in this repository
 
-  <h1>ESP-Claw 🦞 AI Agent Framework for IoT Devices</h1>
+**In one line:** bringing cloud LLM capability down to a few-dollar MCU — this makes an ESP32-P4 **listen** (ES7210 mic → cloud ASR), **speak** (cloud TTS → local playback), **express emotion** (622 frames of character animation switched by conversation context) and **move** (servo), with the LLM driving all of it through tool calls.
 
-  <h3>💬 Chat as Creation · 🚀 Millisecond Response · 🧩 Smart and Extensible · 😋 Grows with You</h3>
+<!-- ⬇️ TODO (author): replace with a 30s demo GIF (voice loop → emotion switch → servo) plus a board photo -->
+| Demo placeholder | What it shows |
+| --- | --- |
+| `docs/demo/voice-loop.gif` | Voice loop: wake → cloud ASR → LLM → TTS playback |
+| `docs/demo/emotion-switch.gif` | Emotion switching: conversation context → on-screen motion |
+| `docs/demo/board.jpg` | ESP32-P4 WiFi6 Touch LCD 4.3 board |
 
-  <p>
-    <a href="https://www.espressif.com">
-      <img src="https://img.shields.io/badge/runs_on-ESP32_Series-red?style=flat-square" alt="Runs on ESP32 Series" />
-    </a>
-    <a href="./LICENSE">
-      <img src="https://img.shields.io/github/license/espressif/esp-claw?style=flat-square" alt="License" />
-    </a>
-  </p>
+---
 
-  <a href="https://esp-claw.com/en/">Home</a>
-  |
-  <a href="https://esp-claw.com/en/tutorial/">Docs</a>
-  |
-  <a href="https://esp-claw.com/en/flash/">Online Flashing</a>
-  |
-  <a href="https://esp-claw.com/en/reference-project/build-from-source/">Build from Source</a>
-  |
-  <a href="./README_CN.md">简体中文</a>
+## 1. What I built on top of upstream
 
-</div>
+> The framework core (`components/claw_*`, `components/lua_modules/`) **comes from upstream espressif/esp-claw**. Everything below is my own addition or modification, and each row is verifiable in this repository.
 
-**ESP-Claw** is Espressif's **Chat Coding** AI agent framework for IoT devices. It defines device behavior through conversation and completes the full loop of sensing, decision-making, and execution locally on Espressif chips. Inspired by the OpenClaw concept and reimplemented in C, ESP-Claw is lightweight, intelligent, and continuously evolving. With just an ESP32-series chip that costs only a few dollars, you can experience what makes ESP-Claw so nimble.
-
-## 📌 About this repository: a derivative of ESP-Claw
-
-This repository is a second-stage development based on Espressif's official open-source framework [espressif/esp-claw](https://github.com/espressif/esp-claw) (Apache-2.0), focused on the "Aili Edge Agent" on-device AI agent. **The framework core (`components/claw_*`, `components/lua_modules/`) comes from upstream.** My own additions and modifications:
-
-| Area | Scale | Details |
+| Module | Scale | Location / notes |
 | --- | --- | --- |
-| New Capability modules | 3 / ~3.3k lines of C | `cap_voice` (TTS playback), `cap_asr` (ES7210 mic capture), `cap_servo` (servo control) |
-| Video player component | 14 files / 4.3k lines | `application/edge_agent/components/video_player/`: MJPEG streaming, PPA hardware blending, `emotion_video_controller`, display arbitration & stutter recovery |
-| Voice pipeline common layer | 3 files / 324 lines | `components/common/voice_ws_common/`: mic capture → WebSocket → cloud ASR → LLM → TTS → local playback, event-driven loop |
-| Board & system adaptation | 4 boards | incl. `esp32_p4_wifi6_touch_lcd_4_3`; 8/16/32MB partition scheme; ST7701 mirroring fix; PSRAM/NVS crash fix |
-| Character animation assets | 622 frames | `Hiyori/` 10 Live2D motion sets + `convert_to_mjpeg.sh` pipeline |
-| Documentation | 72 files / 18k lines | `ARCHITECTURE_CN.md`, voice / servo / emotion subsystem architecture docs |
-| Changes to upstream code | 50 files / +604 / −209 | `app_capabilities.c`, `display_arbiter.c`, `app_claw/Kconfig`, etc. |
+| **3 Capability modules** | ~3.3k lines of C | `components/claw_capabilities/cap_voice/` (TTS playback, 1,330 lines), `cap_servo/` (servo control, 1,333 lines incl. `motion.c`), `cap_asr/` (ES7210 capture, 609 lines) — exposed through the "register → discover → invoke" mechanism so the LLM drives them via JSON-Schema tool calls |
+| **Custom video_player component** | 14 files / 4.3k lines | `application/edge_agent/components/video_player/`: `app_extractor.c` (1,266) · `video_player.c` (1,099) · `app_stream_adapter.c` (696) · `emotion_video_controller.c` (307) · `ppa_blend.c` (155) … MJPEG streaming, PPA hardware blending, display arbitration and stutter recovery |
+| **Voice WebSocket common layer** | 3 files / 324 lines | `components/common/voice_ws_common/`: mic capture → WebSocket uplink → cloud ASR → LLM → TTS → local playback, event-routed |
+| **Board & system adaptation** | 4 board targets | `application/edge_agent/boards/espressif/`: `esp32_p4_wifi6_touch_lcd_4_3`, `esp32_p4_eye`, `esp32_S3_DevKitC_1*`, `esp_box_3` and more; unified **8 / 16 / 32MB partition scheme** (`partitions_8MB.csv`, `partitions_16MB.csv`, `partitions_32MB.csv`) |
+| **Character animation asset pipeline** | 10 motion sets / 622 frames | `Hiyori/` (m01–m10 Live2D motions) plus my `convert_to_mjpeg.sh` transcoding them to MJPEG for on-demand playback from a FATFS partition |
+| **System & display fixes** | — | ST7701 panel mirroring fix + touchscreen enabled; PSRAM / NVS crash root-caused and fixed; playback stutter (display arbitration + recovery); playback stream decoupled from render path |
+| **Chinese architecture docs** | 72 files / 18k lines | `ARCHITECTURE_CN.md` (2,695 lines), `语音模块架构文档.md` (1,858), `舵机控制代码架构文档.md` (1,014), `情绪切换系统架构文档.md` (751), `硬件显示架构.md` (674), `屏幕触摸按钮架构文档.md` (633), `PSRAM_NVS_CRASH_FIX.md`, `硬件镜像排查记录.md`, `Web管理界面架构文档.md` … |
+| **Changes to upstream code** | 50 files / +604 / −209 | `app_capabilities.c`, `display_arbiter.c`, `app_claw/Kconfig`, `sdkconfig.defaults`, frontend `StatusBar.tsx`, etc. |
 
-Upstream framework and third-party components remain copyright of their respective authors under the Apache-2.0 license.
+---
 
-<div align="center">
-  <img alt="From traditional IoT to Edge Agent" src="./docs/static/from-traditional-iot-to-edge-agent.webp" width="90%" />
-</div>
+## 2. Four technical highlights
 
-## 🌟 Key Features
+### 1. Capability layer — the LLM operates hardware directly
+Three new Capability modules follow the upstream register/discover/invoke mechanism: each capability exposes itself as a tool with a JSON Schema, and the cloud LLM decides when to use the microphone, the speaker or the servo. **The voice pipeline is not hard-wired in firmware — the agent decides what to say and which animation to play.**
 
-Traditional IoT usually stops at connectivity: devices can connect to the network, but they cannot think; they can execute commands, but they cannot make decisions. ESP-Claw brings the Agent Runtime down onto Espressif chips, turning them from passive executors into active decision-making centers.
+### 2. Presentation layer — video_player (MJPEG + PPA + display arbitration)
+- **Why MJPEG instead of GIF / H.264:** on an MCU, JPEG benefits from PPA hardware assistance, decode cost is predictable and an 8-frame buffer pool keeps memory budgetable. GIF has poor palette quality and still burns CPU; H.264's decode complexity and licensing do not fit an MCU. On storage, MJPEG is read on demand from FATFS.
+- **LVGL, video and animations all contending for the LCD:** solved with `display_arbiter` plus stutter recovery; the playback stream is decoupled from the render path so network jitter cannot interrupt playback.
+- Emotion linkage: `emotion_video_controller.c` switches character animations based on conversation context (commits `30d07d66`, `a869b6b1`, `15cec9fc`).
 
-<table align="center">
-  <tr>
-    <th><div align="center"> 💬 Chat as Creation </div></th>
-    <th><div align="center"> ⚙️ Event Driven </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        IM chat + dynamic Lua loading
-        <br />
-        Ordinary users can define device behavior without programming
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        Any event can trigger the Agent Loop and more
-        <br />
-        Response can be as fast as milliseconds
-      </div>
-    </th>
-  </tr>
-  <tr>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/717a4dae-fbd3-4364-afca-2d45432f156e" />
-    </th>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/5a274a4a-e1dc-4c13-81aa-fb1c22d470bf" />
-    </th>
-  </tr>
+### 3. Link layer — the on-device voice loop
+```mermaid
+flowchart LR
+    A[ES7210 mic<br/>16kHz/16bit] -->|I2S| B[cap_asr]
+    B -->|WebSocket uplink<br/>~32KB/s| C[Cloud voice bridge]
+    C -->|ASR result| D[LLM<br/>OpenAI / Anthropic style API]
+    D -->|tool calls| E[cap_voice / cap_servo / animation]
+    C -->|TTS: Opus 24kHz/32kbps<br/>character-streamed| F[cap_voice local playback]
+    E --> G[display_arbiter → LCD animation]
+```
+- TX/RX and decoding are **decoupled by queues**, so network jitter does not interrupt playback;
+- the voice path uses a **384KB PSRAM ring buffer** with **12 / 8 / 5KB tiered task stacks**, keeping scarce internal DRAM for the protocol stack and display;
+- on cloud disconnect it reconnects with **exponential backoff** (1s → 2s → 4s … capped at 30s).
 
-  <tr>
-    <td colspan="2"><!-- spacer row --></td>
-  </tr>
+### 4. Board & system — a three-tier partition scheme and two hard debugging sessions
+- The **8 / 16 / 32MB partition scheme** unified boards with different flash sizes, alongside 4 new board targets (commits `d9f3cf9a`, `01795ddc`, `2d908c04`, `8f875b26`);
+- **PSRAM / NVS crash**: the investigation and root cause are documented in [`PSRAM_NVS_CRASH_FIX.md`](./application/edge_agent/PSRAM_NVS_CRASH_FIX.md) (commit `ff4edcaf`);
+- **ST7701 panel mirroring + touchscreen**: see [`硬件镜像排查记录.md`](./application/edge_agent/硬件镜像排查记录.md) (commit `66f370e2`).
 
-  <tr>
-    <th><div align="center"> 🧬 Structured Memory </div></th>
-    <th><div align="center"> 📤 MCP Communication </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        Organize memories in a structured way
-        <br />
-        Privacy stays off the cloud
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        Supports standard MCP devices
-        <br />
-        Works as both Server and Client
-      </div>
-    </th>
-  </tr>
-  <tr>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/2c8bcaa4-3606-49d3-9b70-86ad3234d48f" />
-    </th>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/b1f71cee-e428-4b92-ad7e-d7816839f866" />
-    </th>
-  </tr>
+---
 
-  <tr>
-    <td colspan="2"><!-- spacer row --></td>
-  </tr>
+## 3. Repository layout (where my work lives)
 
-  <tr>
-    <th><div align="center"> 🧰 Ready Out of the Box </div></th>
-    <th><div align="center"> 🧩 Component Extensibility </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        Quick setup with Board Manager
-        <br />
-        Supports one-click flashing
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        Every module can be trimmed as needed
-        <br />
-        You can also add your own component integrations
-      </div>
-    </th>
-  </tr>
-</table>
+```
+application/edge_agent/
+├── ARCHITECTURE_CN.md            # full architecture doc (2,695 lines)
+├── components/video_player/      # mine: MJPEG playback / PPA blending / emotion controller
+├── boards/espressif/             # board support (incl. esp32_p4_wifi6_touch_lcd_4_3)
+├── docs/                         # DEV_WORKFLOW.md / ONBOARDING.md / voice_channel_plan.md
+├── partitions_{8,16,32}MB.csv    # three-tier partition scheme
+└── fatfs_image/                  # animation assets and Lua scripts
+components/
+├── claw_capabilities/cap_{voice,asr,servo}/   # mine: capability modules
+└── common/voice_ws_common/                     # mine: voice WebSocket layer
+Hiyori/                            # 10 Live2D motion sets (622 frames) + convert_to_mjpeg.sh
+```
 
-## 📦 Quick Start
+---
 
-<div align="center">
-  <img src="docs/src/assets/images/claw-breadboard-photo.jpg" width="80%" alt="ESP-Claw on ESP32-S3 Breadboard" />
-</div>
+## 4. Build and flash
 
-ESP-Claw already supports multiple ESP32-S3-based development boards, including breadboards, M5Stack CoreS3, and more. Supported boards in [`./application/edge_agent/boards/`](./application/edge_agent/boards/) can be flashed online directly: configuration and flashing are done entirely in the browser, with no need to compile firmware locally or install a development environment first.
+> The project is based on ESP-IDF targeting ESP32-P4. Install the toolchain following the upstream documentation first.
 
-<div align="center">
-  <a href="https://esp-claw.com/en/flash/">
-    <img src="./docs/static/flash-via-browser-button.svg" width="200" />
-  </a>
-</div>
+```bash
+# 1) install and activate ESP-IDF (version noted in the root sdkconfig.defaults)
+. $IDF_PATH/export.sh
 
-You can also build ESP-Claw locally. Please refer to the [local build documentation](https://esp-claw.com/en/tutorial/) for board adaptation, building, and flashing. Boards not listed above, as well as chips like the ESP32-P4, can also be supported through local builds and flashing.
+# 2) select target and board
+cd application/edge_agent
+idf.py set-target esp32p4
+idf.py menuconfig        # Board / Capability / partition table (8 / 16 / 32MB)
 
-You can find practical examples in our [documentation](https://esp-claw.com/en/tutorial/).
+# 3) build, flash, monitor
+idf.py build
+idf.py -p <PORT> flash monitor
+```
 
-### Supported Platforms
+> For board configuration options and browser-based flashing, refer to the upstream docs at [esp-claw.com](https://esp-claw.com/). This repository only maintains its own board configs and application code.
 
-<div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/static/claw-providers-white.webp" />
-    <source media="(prefers-color-scheme: light)" srcset="./docs/static/claw-providers-black.webp" />
-    <img alt="Supported Platforms" src="./docs/static/claw-providers-black.webp" width="90%" />
-  </picture>
-</div>
+---
 
-**LLM**: ESP-Claw now supports both OpenAI-style APIs and Anthropic-style APIs. It natively supports GPT models from OpenAI, Qwen models from Alibaba Cloud Bailian, Claude models from Anthropic, DeepSeek models from DeepSeek API, and also supports custom endpoints.
+## 5. Documentation index
 
-> [!TIP]
->
-> ESP-Claw's self-programming capability depends on models with strong tool use and instruction-following ability. We recommend `gpt-5.4`, `qwen3.6-plus`, `claude4.6-sonnet`, `deepseek-v4-pro` or models with comparable capability.
+| Document | Content |
+| --- | --- |
+| [`ARCHITECTURE_CN.md`](./application/edge_agent/ARCHITECTURE_CN.md) | Full module architecture (2,695 lines) |
+| [`语音模块架构文档.md`](./application/edge_agent/语音模块架构文档.md) | Voice pipeline, buffers, task partitioning (1,858 lines) |
+| [`舵机控制代码架构文档.md`](./application/edge_agent/舵机控制代码架构文档.md) | Servo capability implementation (1,014 lines) |
+| [`情绪切换系统架构文档.md`](./application/edge_agent/情绪切换系统架构文档.md) | Emotion → motion mapping (751 lines) |
+| [`硬件显示架构.md`](./application/edge_agent/硬件显示架构.md) / [`屏幕触摸按钮架构文档.md`](./application/edge_agent/屏幕触摸按钮架构文档.md) | Display and touch (674 / 633 lines) |
+| [`PSRAM_NVS_CRASH_FIX.md`](./application/edge_agent/PSRAM_NVS_CRASH_FIX.md) / [`硬件镜像排查记录.md`](./application/edge_agent/硬件镜像排查记录.md) | Two key debugging records |
+| [`docs/DEV_WORKFLOW.md`](./application/edge_agent/docs/DEV_WORKFLOW.md) | Development workflow (867 lines) |
 
-**IM**: ESP-Claw supports Telegram, QQ, Feishu, and WeChat, and can be extended further.
+---
 
-## Development Plan
+## 6. Metrics — measured vs. not yet measured
 
-ESP-Claw is still under active development. Feel free to open an issue to report problems or request features. You can also share your ideas through our [online survey (in Chinese)](https://fcn5wbhnyubf.feishu.cn/share/base/form/shrcndYcjbGFY1ymttTSyYoGIPh).
+To avoid overstating anything, here is the exact status of each number:
 
-[Click here to view our TODO List (in Chinese)](https://fcn5wbhnyubf.feishu.cn/wiki/SRlgwWUYei4WmykU8uMcUtzTnFf?table=tblWSgzWcyW7jv7B&view=vewaP9B0KX) and vote for the features or issues you care about. That helps us prioritize them sooner.
+| Metric | Value | Basis |
+| --- | --- | --- |
+| Voice uplink bandwidth | ~32 KB/s | Design parameter (16kHz / 16bit / mono) |
+| TTS output | Opus 24kHz / 32kbps, character-streamed | Design parameter |
+| Voice ring buffer / task stacks | 384KB PSRAM / 12+8+5KB | Design parameter (voice architecture doc) |
+| Cloud reconnect backoff | 1s → capped at 30s | Design parameter |
+| End-to-end voice latency (mean / P95) | **not yet measured** | No instrumented run yet |
+| Firmware flash / RAM footprint (`idf.py size`) | **not yet measured** | Not exported yet |
 
+> A related peripheral project (ESP32-P4 USB secondary display) does have one measured figure: frame rate improved from **15fps to 30fps** (see the `usb_800x480_RGBLCD` repository).
 
+---
 
-## 📷 Follow Us
+## 7. Relationship to upstream & acknowledgements
 
-If this project helps you, please consider giving it a star. ⭐⭐⭐⭐⭐
-
-### Star History
-
-<div align="center">
-  <a href="https://www.star-history.com/?repos=espressif%2Fesp-claw&type=date&legend=top-left">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&theme=dark&legend=top-left" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&legend=top-left" />
-    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&legend=top-left" />
-  </picture>
-  </a>
-</div>
-
-## Acknowledgements
-
-Inspired by [OpenClaw](https://github.com/openclaw/openclaw).
-
-The implementation of Agent Loop, IM communication, and related capabilities on ESP32 also draws on [MimiClaw](https://github.com/memovai/mimiclaw).
+- **Upstream:** this project is a derivative work built on Espressif's official open-source framework [espressif/esp-claw](https://github.com/espressif/esp-claw) (Apache-2.0). The framework core (Agent Runtime, event routing, `components/claw_*`, `components/lua_modules/`) is **upstream's implementation and copyright**; my additions are listed in section 1.
+- **License:** Apache-2.0, see [LICENSE](./LICENSE).
+- **Acknowledgements:** the upstream framework is open-sourced by Espressif Systems; ESP-Claw's Agent Loop and IM communication draw on [OpenClaw](https://github.com/openclaw/openclaw) and [memovai/mimiclaw](https://github.com/memovai/mimiclaw).
