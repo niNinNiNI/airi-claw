@@ -1,213 +1,140 @@
-<div align="center">
+# 爱莉 Edge Agent · 端侧 AI 智能体（ESP32-P4）
 
-  <a href="https://esp-claw.com/">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="./docs/src/assets/logos/logo-f.svg" />
-      <source media="(prefers-color-scheme: light)" srcset="./docs/src/assets/logos/logo.svg" />
-      <img alt="ESP-Claw logo" src="./docs/src/assets/logos/logo.svg" width="50%" />
-    </picture>
-  </a>
+> 作者：**常景皓**（GitHub [@niNinNiNI](https://github.com/niNinNiNI)）
+> 形态：在 **乐鑫官方开源框架 [espressif/esp-claw](https://github.com/espressif/esp-claw)**（Apache-2.0）之上做二次开发
+> 周期：2026.05 – 2026.06 · 本仓库我本人提交 **30 次**
 
-  <h1>ESP-Claw 🦞 物联网设备 AI 智能体框架</h1>
+**一句话**：把云端大模型能力落到几美元 MCU 上——让一块 ESP32-P4 能**听**（ES7210 麦克风 → 云端 ASR）、能**说**（云端 TTS → 本地播放）、有**表情**（622 帧角色动作按对话语境切换）、能**动**（舵机），并且这套能力由 LLM 通过工具调用直接驱动。
 
-  <h3>💬聊天即造物 · 🚀毫秒级响应 · 🧩智能可扩展 · 😋越用越懂你</h3>
+<!-- ⬇️ TODO（本人补）：录 30 秒演示（语音对话 → 情绪动作切换 → 舵机动作）后换成 GIF，并加一张板子实物照 -->
+| 演示占位 | 说明 |
+| --- | --- |
+| `docs/demo/voice-loop.gif` | 语音闭环：唤醒 → 云端 ASR → LLM → TTS 回放 |
+| `docs/demo/emotion-switch.gif` | 情绪动作切换：对话语境 → 画面动作联动 |
+| `docs/demo/board.jpg` | ESP32-P4 WiFi6 Touch LCD 4.3 实机照 |
 
-  <p>
-    <a href="https://www.espressif.com">
-      <img src="https://img.shields.io/badge/runs_on-ESP32_Series-red?style=flat-square" alt="Runs on ESP32 Series" />
-    </a>
-    <a href="./LICENSE">
-      <img src="https://img.shields.io/github/license/espressif/esp-claw?style=flat-square" alt="License" />
-    </a>
-  </p>
+---
 
-  <a href="https://esp-claw.com/zh-cn/">主页</a>
-  |
-  <a href="https://esp-claw.com/zh-cn/tutorial/">文档</a>
-  |
-  <a href="https://esp-claw.com/zh-cn/flash/">在线烧录</a>
-  |
-  <a href="https://esp-claw.com/zh-cn/reference-project/build-from-source/">源码编译</a>
-  |
-  <a href="./README.md">English</a>
+## 一、我在上游之上做了什么
 
-</div>
+> 框架核心（`components/claw_*`、`components/lua_modules/`）**来自上游 espressif/esp-claw**；下表是我新增与修改的部分，每一行都能在仓库里点开验证。
 
-**ESP-Claw** 是乐鑫推出的面向物联网设备的 **Chat Coding「聊天造物」** 式 AI Agent 框架，以对话定义设备行为，在乐鑫芯片上本地完成感知、决策与执行的完整闭环。ESP-Claw 自 OpenClaw 理念出发，用 C 语言重新实现，轻盈、智能、成长。仅需一块几美元的 ESP32 系列芯片，便可体验 ESP-Claw 的轻灵特性。
-
-## 📌 本仓库说明：基于 ESP-Claw 的二次开发
-
-本仓库是基于乐鑫官方开源框架 [espressif/esp-claw](https://github.com/espressif/esp-claw)（Apache-2.0）的二次开发项目，产品方向为「爱莉 Edge Agent」端侧 AI 智能体。**框架核心（`components/claw_*`、`components/lua_modules/`）来自上游项目**，以下为本人新增与修改的部分：
-
-| 类别 | 规模 | 内容 |
+| 模块 | 规模 | 代码位置 / 说明 |
 | --- | --- | --- |
-| 新增 Capability 能力模块 | 3 个 / 约 3.3k 行 C | `cap_voice`（TTS 播放）、`cap_asr`（ES7210 麦克风采集）、`cap_servo`（舵机控制） |
-| 新增视频播放组件 | 14 文件 / 4.3k 行 | `application/edge_agent/components/video_player/`：MJPEG 流式播放、PPA 硬件混合、`emotion_video_controller` 情绪动作切换、显示仲裁与卡顿恢复 |
-| 语音链路公共层 | 3 文件 / 324 行 | `components/common/voice_ws_common/`：麦克风采集 → WebSocket → 云端 ASR → LLM → TTS → 本地播放的事件驱动闭环 |
-| 板级与系统适配 | 4 套板卡 | 含 `esp32_p4_wifi6_touch_lcd_4_3`；8/16/32MB 三级分区规范；ST7701 面板镜像修复；PSRAM/NVS 崩溃修复 |
-| 角色动作资产管线 | 622 帧 | `Hiyori/` 10 组 Live2D 动作 + `convert_to_mjpeg.sh` 转码管线 |
-| 技术文档 | 72 篇 / 1.8 万行 | `ARCHITECTURE_CN.md`、语音模块架构、舵机控制架构、情绪切换系统架构等 |
-| 对上游代码的修改 | 50 文件 / +604 / −209 | `app_capabilities.c`、`display_arbiter.c`、`app_claw/Kconfig` 等 |
+| **3 个 Capability 能力模块** | 约 3.3k 行 C | `components/claw_capabilities/cap_voice/`（TTS 播放 1,330 行）、`cap_servo/`（舵机控制 1,333 行，含 `motion.c`）、`cap_asr/`（ES7210 采集 609 行）——经"能力注册→发现→调用"机制由 LLM 以 JSON Schema 工具调用直接驱动 |
+| **自研 video_player 组件** | 14 文件 / 4.3k 行 | `application/edge_agent/components/video_player/`：`app_extractor.c`(1,266) · `video_player.c`(1,099) · `app_stream_adapter.c`(696) · `emotion_video_controller.c`(307) · `ppa_blend.c`(155) … 实现 MJPEG 流式播放、PPA 硬件混合、显示仲裁与卡顿自恢复 |
+| **语音 WebSocket 公共层** | 3 文件 / 324 行 | `components/common/voice_ws_common/`：麦克风采集 → WebSocket 上行 → 云端 ASR → LLM → TTS → 本地播放，事件路由驱动 |
+| **板级与系统适配** | 4 套板卡 | `application/edge_agent/boards/espressif/`：`esp32_p4_wifi6_touch_lcd_4_3`、`esp32_p4_eye`、`esp32_S3_DevKitC_1*`、`esp_box_3` 等；统一 **8 / 16 / 32MB 三级分区规范**（`partitions_8MB.csv`、`partitions_16MB.csv`、`partitions_32MB.csv`） |
+| **角色表现资产管线** | 10 组动作 / 622 帧 | `Hiyori/`（m01–m10 Live2D 动作）+ 自研 `convert_to_mjpeg.sh` 转码为 MJPEG 落入 FATFS 分区按需播放 || **系统与显示修复** | — | ST7701 面板镜像修复并启用触摸屏、PSRAM / NVS 崩溃定位与修复、播放卡顿（display 仲裁 + 卡顿自恢复）、显示流与渲染路径解耦 |
+| **中文架构文档** | 72 文件 / 18k 行 | `ARCHITECTURE_CN.md`(2,695 行)、`语音模块架构文档.md`(1,858)、`舵机控制代码架构文档.md`(1,014)、`情绪切换系统架构文档.md`(751)、`硬件显示架构.md`(674)、`屏幕触摸按钮架构文档.md`(633)、`PSRAM_NVS_CRASH_FIX.md`、`硬件镜像排查记录.md`、`Web管理界面架构文档.md` … |
+| **对上游代码的修改** | 50 文件 / +604 / −209 | `app_capabilities.c`、`display_arbiter.c`、`app_claw/Kconfig`、`sdkconfig.defaults`、前端 `StatusBar.tsx` 等 |
 
-上游框架及其中引用的第三方组件版权归各自作者所有，遵循 Apache-2.0 许可。
+---
 
-<div align="center">
-  <img alt="From traditional IoT to Edge Agent" src="./docs/static/from-traditional-iot-to-edge-agent.webp" width="90%" />
-</div>
+## 二、四个技术亮点
 
-## 🌟核心特性
+### 1. 能力层：让 LLM 直接操作硬件
+新增三个 Capability 模块，遵循上游"能力注册—发现—调用"机制：每个能力把自己暴露成带 JSON Schema 的工具，云端 LLM 决定何时调用麦克风、扬声器、舵机。**不是把语音链路写死在固件里，而是让 Agent 自己决定说什么、做什么表情。**
 
-传统 IoT 只停留在连接层——设备能联网，却不能思考；能执行，却不能决策。ESP-Claw 将 Agent Runtime 下沉至乐鑫芯片，让芯片从被动的"执行端"转变为主动的"决策中心"。
+### 2. 表现层：video_player（MJPEG + PPA + 显示仲裁）
+- **为什么用 MJPEG 而不是 GIF / H.264**：MCU 侧 JPEG 有 PPA 硬件辅助、解码开销可控、8 帧帧缓冲池内存可预算；GIF 调色板质量差且同样吃 CPU，H.264 的解码复杂度与授权不适合 MCU。存储侧 MJPEG 落 FATFS 按需读取。
+- **LVGL、视频、表情三方抢 LCD 的问题**：用 `display_arbiter` 做仲裁，并实现卡顿自恢复；把播放流与渲染路径解耦，避免网络抖动直接打断播放。
+- 情绪联动：`emotion_video_controller.c` 按对话语境自动切换角色动作（相关提交：`30d07d66`、`a869b6b1`、`15cec9fc`）。
 
-<table align="center">
-  <tr>
-    <th><div align="center"> 💬 聊天造物 </div></th>
-    <th><div align="center"> ⚙️ 事件驱动 </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        IM 聊天 + Lua 动态加载
-        <br />
-        普通用户即可定义设备行为，无需编程
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        任意事件可触发 Agent Loop 等动作
-        <br />
-        最快毫秒级响应
-      </div>
-    </th>
-  </tr>
-  <tr>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/9ec020c2-d133-4ab5-adaa-28817415bc26" />
-    </th>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/c3613e52-61a8-49c2-a224-4a436a4c9e3e" />
-    </th>
-  </tr>
+### 3. 链路层：端侧语音闭环
+```mermaid
+flowchart LR
+    A[ES7210 麦克风<br/>16kHz/16bit] -->|I2S| B[cap_asr]
+    B -->|WebSocket 上行<br/>约 32KB/s| C[端云语音桥接服务]
+    C -->|ASR 结果| D[LLM<br/>OpenAI / Anthropic 风格 API]
+    D -->|工具调用| E[cap_voice / cap_servo / 表情]
+    C -->|TTS: Opus 24kHz/32kbps<br/>逐字符流式| F[cap_voice 本地播放]
+    E --> G[display_arbiter → LCD 角色动作]
+```
+- 收发与解码用**队列解耦**，网络抖动不会直接打断播放；
+- 语音链路使用 **384KB PSRAM 环形缓冲** + **12 / 8 / 5KB 分级任务栈**，把稀缺的内部 DRAM 留给协议栈与显示；
+- 云端断开后按**指数退避重连**（1s → 2s → 4s … 上限 30s）。
 
-  <tr>
-    <td colspan="2"><!-- 分隔行 --></td>
-  </tr>
+### 4. 板级与系统：三级分区规范 + 两次硬骨头调试
+- **8 / 16 / 32MB 三级分区规范**统一了不同 Flash 容量的板卡，新增 4 套板卡适配（提交 `d9f3cf9a`、`01795ddc`、`2d908c04`、`8f875b26`）；
+- **PSRAM / NVS 崩溃**：定位过程与根因记录在 [`PSRAM_NVS_CRASH_FIX.md`](./application/edge_agent/PSRAM_NVS_CRASH_FIX.md)（提交 `ff4edcaf`）；
+- **ST7701 面板镜像 + 触摸屏**：见 [`硬件镜像排查记录.md`](./application/edge_agent/硬件镜像排查记录.md)（提交 `66f370e2`）。
 
-  <tr>
-    <th><div align="center"> 🧬 结构化记忆 </div></th>
-    <th><div align="center"> 📤 MCP 通讯 </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        有条理地沉淀记忆内容
-        <br />
-        隐私不上云
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        支持连接标准 MCP 设备
-        <br />
-        具备 Server/Client 双重身份
-      </div>
-    </th>
-  </tr>
-  <tr>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/1fe6d67c-469d-405d-a6ec-648aa2681b15" />
-    </th>
-    <th width="45%">
-      <video src="https://github.com/user-attachments/assets/b582ac5b-dd14-486f-b531-495597aa2af6" />
-    </th>
-  </tr>
+---
 
-  <tr>
-    <td colspan="2"><!-- 分隔行 --></td>
-  </tr>
+## 三、仓库结构（我改动/新增的部分集中在这些目录）
 
-  <tr>
-    <th><div align="center"> 🧰 开箱即用 </div></th>
-    <th><div align="center"> 🧩 组件扩展 </div></th>
-  </tr>
-  <tr>
-    <th>
-      <div align="center">
-        基于 Board Manager 快速配置
-        <br />
-        支持一键烧录
-      </div>
-    </th>
-    <th>
-      <div align="center">
-        所有模块均可按需裁剪
-        <br />
-        也可自行添加组件适配
-      </div>
-    </th>
-  </tr>
-</table>
+```
+application/edge_agent/
+├── ARCHITECTURE_CN.md            # 全模块架构文档（2,695 行）
+├── components/video_player/      # 自研：MJPEG 播放 / PPA 混合 / 情绪视频控制器
+├── boards/espressif/             # 板级适配（含 esp32_p4_wifi6_touch_lcd_4_3）
+├── docs/                         # DEV_WORKFLOW.md / ONBOARDING.md / voice_channel_plan.md
+├── partitions_{8,16,32}MB.csv    # 三级分区方案
+└── fatfs_image/                  # 角色动作资产与 Lua 脚本
+components/
+├── claw_capabilities/cap_{voice,asr,servo}/   # 自研能力模块
+└── common/voice_ws_common/                     # 语音 WebSocket 公共层
+Hiyori/                            # 10 组 Live2D 动作（622 帧）+ convert_to_mjpeg.sh
+```
 
-## 📦快速开始
+---
 
-<div align="center">
-  <img src="docs/src/assets/images/claw-breadboard-photo.jpg" width="80%" alt="ESP-Claw on ESP32-S3 Breadboard" />
-</div>
+## 四、编译与烧录
 
-ESP-Claw 目前已适配基于 ESP32-S3 的多款开发版，例如面包板、M5Stack CoreS3 等。[已支持的开发版](./application/edge_agent/boards/)可以直接在线烧录：通过网页即可完成配置与烧录，无需额外编译固件或安装开发环境。
+> 工程基于 ESP-IDF（ESP32-P4 目标）。首次编译前请按上游文档安装工具链。
 
-<div align="center">
-  <a href="https://esp-claw.com/zh-cn/flash/">
-    <img src="./docs/static/flash-via-browser-button.svg" width="200" />
-  </a>
-</div>
+```bash
+# 1) 安装并激活 ESP-IDF（版本见项目根 sdkconfig.defaults 注释）
+. $IDF_PATH/export.sh
 
-你也可以在本地编译 ESP-Claw。请参考[本地编译文档](https://esp-claw.com/zh-cn/tutorial/)适配、编译和烧录。未列于上述列表的开发版、ESP32-P4 等芯片还可通过本地编译烧录实现。
+# 2) 选择目标芯片与板卡
+cd application/edge_agent
+idf.py set-target esp32p4
+idf.py menuconfig        # Board / Capability / 分区表在此选择（8 / 16 / 32MB）
 
-我们的[文档](https://esp-claw.com/zh-cn/tutorial/)中有可供参考的使用样例。
+# 3) 编译、烧录、监视
+idf.py build
+idf.py -p <PORT> flash monitor
+```
 
-### 支持的平台
+> 具体板卡配置项与在线烧录方式以上游文档为准：[esp-claw.com](https://esp-claw.com/)（本仓库只维护自己的板级配置与业务代码）。
 
-<div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/static/claw-providers-white.webp" />
-    <source media="(prefers-color-scheme: light)" srcset="./docs/static/claw-providers-black.webp" />
-    <img alt="Supported Platforms" src="./docs/static/claw-providers-black.webp" width="90%" />
-  </picture>
-</div>
+---
 
-**LLM**: ESP-Claw 现已支持 OpenAI 风格 API 和 Anthropic 风格 API，原生支持 OpenAI 提供的 GPT 系列模型、阿里云百炼提供的 Qwen 系列模型、Anthropic 提供的 Claude 系列模型、DeepSeek 官方 API 提供的 DeepSeek 模型等，也可以自定义 Endpoint。
+## 五、文档索引
 
-> [!TIP]
->
-> ESP-Claw 的自编程能力需要调用工具和遵循指令能力较强的模型，推荐使用 `gpt-5.4`、`qwen3.6-plus`、`claude4.6-sonnet`、`deepseek-v4-pro` 或类似性能的模型。
+| 文档 | 内容 |
+| --- | --- |
+| [`ARCHITECTURE_CN.md`](./application/edge_agent/ARCHITECTURE_CN.md) | 全模块架构（2,695 行） |
+| [`语音模块架构文档.md`](./application/edge_agent/语音模块架构文档.md) | 语音链路、缓冲与任务划分（1,858 行） |
+| [`舵机控制代码架构文档.md`](./application/edge_agent/舵机控制代码架构文档.md) | 舵机能力实现（1,014 行） |
+| [`情绪切换系统架构文档.md`](./application/edge_agent/情绪切换系统架构文档.md) | 情绪 → 动作映射（751 行） |
+| [`硬件显示架构.md`](./application/edge_agent/硬件显示架构.md) / [`屏幕触摸按钮架构文档.md`](./application/edge_agent/屏幕触摸按钮架构文档.md) | 显示与触摸（674 / 633 行） |
+| [`PSRAM_NVS_CRASH_FIX.md`](./application/edge_agent/PSRAM_NVS_CRASH_FIX.md) / [`硬件镜像排查记录.md`](./application/edge_agent/硬件镜像排查记录.md) | 两次关键调试记录 |
+| [`docs/DEV_WORKFLOW.md`](./application/edge_agent/docs/DEV_WORKFLOW.md) | 开发工作流（867 行） |
 
-**IM**: ESP-Claw 支持 Telegram、QQ、飞书、微信四大聊天软件，并可扩展。
+---
 
-## 🔧开发计划
+## 六、指标说明（哪些是实测、哪些还没测）
 
-ESP-Claw 目前仍处于活跃开发阶段，欢迎向我们提交 Issue 反馈问题或提交 Feature 请求。也可以通过[在线问卷](https://fcn5wbhnyubf.feishu.cn/share/base/form/shrcndYcjbGFY1ymttTSyYoGIPh)告诉我们你的想法。
+为避免夸大，这里把口径写清楚：
 
-[点此查看我们的 TODO List](https://fcn5wbhnyubf.feishu.cn/wiki/SRlgwWUYei4WmykU8uMcUtzTnFf?table=tblWSgzWcyW7jv7B&view=vewaP9B0KX)，为你心仪的 Feature / 关注的 Issue 投票，我们可以更早实现/修复！
+| 指标 | 数值 | 口径 |
+| --- | --- | --- |
+| 语音上行带宽 | 约 32 KB/s | 设计参数（16kHz / 16bit / 单声道） |
+| TTS 输出 | Opus 24kHz / 32kbps，逐字符流式 | 设计参数 |
+| 语音环形缓冲 / 任务栈 | 384KB PSRAM / 12+8+5KB | 设计参数（见语音模块架构文档） |
+| 云端重连退避 | 1s → 上限 30s | 设计参数 |
+| 端到端语音延迟（均值 / P95） | **待补测** | 尚未打点实测 |
+| 固件 Flash / RAM 占用（`idf.py size`） | **待补测** | 尚未导出 |
 
-## 📷关注我们
+> 相关外设项目（ESP32-P4 USB 外扩副屏）另有一处实测：投屏帧率 **15fps → 30fps**（见 `usb_800x480_RGBLCD` 仓库）。
 
-如果这个项目对您有所帮助，欢迎点亮一颗星！⭐⭐⭐⭐⭐
+---
 
-### Star History
+## 七、与上游的关系与致谢
 
-<div align="center">
-  <a href="https://www.star-history.com/?repos=espressif%2Fesp-claw&type=date&legend=top-left">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&theme=dark&legend=top-left" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&legend=top-left" />
-      <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=espressif/esp-claw&type=date&legend=top-left" />
-    </picture>
-  </a>
-</div>
-
-## 致谢
-
-灵感来自 [OpenClaw](https://github.com/openclaw/openclaw)。
-
-Agent Loop 和 IM 通讯等功能在 ESP32 上的实现参考了 [MimiClaw](https://github.com/memovai/mimiclaw)。
+- **上游**：本项目基于乐鑫官方开源框架 [espressif/esp-claw](https://github.com/espressif/esp-claw)（Apache-2.0）二次开发。框架核心（Agent Runtime、事件路由、`components/claw_*`、`components/lua_modules/`）**版权与实现均属上游**；本仓库的增量如第一节表格所列。
+- **许可证**：沿用 Apache-2.0，见 [LICENSE](./LICENSE)。
+- **致谢**：上游框架由乐鑫（Espressif Systems）开源；ESP-Claw 的 Agent Loop / IM 通信等实现参考了 [OpenClaw](https://github.com/openclaw/openclaw) 与 [memovai/mimiclaw](https://github.com/memovai/mimiclaw)。
