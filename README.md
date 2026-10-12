@@ -35,6 +35,22 @@
 
 **ESP-Claw** is Espressif's **Chat Coding** AI agent framework for IoT devices. It defines device behavior through conversation and completes the full loop of sensing, decision-making, and execution locally on Espressif chips. Inspired by the OpenClaw concept and reimplemented in C, ESP-Claw is lightweight, intelligent, and continuously evolving. With just an ESP32-series chip that costs only a few dollars, you can experience what makes ESP-Claw so nimble.
 
+## 📌 About this repository: a derivative of ESP-Claw
+
+This repository is a second-stage development based on Espressif's official open-source framework [espressif/esp-claw](https://github.com/espressif/esp-claw) (Apache-2.0), focused on the "Aili Edge Agent" on-device AI agent. **The framework core (`components/claw_*`, `components/lua_modules/`) comes from upstream.** My own additions and modifications:
+
+| Area | Scale | Details |
+| --- | --- | --- |
+| New Capability modules | 3 / ~3.3k lines of C | `cap_voice` (TTS playback), `cap_asr` (ES7210 mic capture), `cap_servo` (servo control) |
+| Video player component | 14 files / 4.3k lines | `application/edge_agent/components/video_player/`: MJPEG streaming, PPA hardware blending, `emotion_video_controller`, display arbitration & stutter recovery |
+| Voice pipeline common layer | 3 files / 324 lines | `components/common/voice_ws_common/`: mic capture → WebSocket → cloud ASR → LLM → TTS → local playback, event-driven loop |
+| Board & system adaptation | 4 boards | incl. `esp32_p4_wifi6_touch_lcd_4_3`; 8/16/32MB partition scheme; ST7701 mirroring fix; PSRAM/NVS crash fix |
+| Character animation assets | 622 frames | `Hiyori/` 10 Live2D motion sets + `convert_to_mjpeg.sh` pipeline |
+| Documentation | 72 files / 18k lines | `ARCHITECTURE_CN.md`, voice / servo / emotion subsystem architecture docs |
+| Changes to upstream code | 50 files / +604 / −209 | `app_capabilities.c`, `display_arbiter.c`, `app_claw/Kconfig`, etc. |
+
+Upstream framework and third-party components remain copyright of their respective authors under the Apache-2.0 license.
+
 <div align="center">
   <img alt="From traditional IoT to Edge Agent" src="./docs/static/from-traditional-iot-to-edge-agent.webp" width="90%" />
 </div>

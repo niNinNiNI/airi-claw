@@ -27,6 +27,14 @@ static bool s_servo_initialized = false;
 static TaskHandle_t s_motion_task = NULL;
 static double s_last_angle[2] = {SERVO_HOME_ANGLE_0, SERVO_HOME_ANGLE_1};
 
+/* ---------- idle breathing state ---------- */
+
+static TaskHandle_t s_idle_mgr_task = NULL;
+static TaskHandle_t s_idle_breath_task = NULL;
+static bool s_idle_enabled = true;
+static uint32_t s_idle_delay_ms = CONFIG_APP_CLAW_SERVO_IDLE_DELAY_MS;
+static motion_t s_idle_breathing_table[4];
+
 /* ---------- helpers ---------- */
 
 static esp_err_t ensure_servo(void)
@@ -129,6 +137,240 @@ static void stop_motion_task(void)
         s_motion_task = NULL;
     }
     motion_player_reset();
+}
+
+/* ---------- idle breathing ---------- */
+
+static void init_idle_breathing_table(void)
+{
+    double range = (double)CONFIG_APP_CLAW_SERVO_IDLE_SWEEP_RANGE;
+    double step_slow = 0.08;
+    uint32_t step_delay = 25;
+
+    /* Phase 1: Inhale — drift outward slowly */
+    s_idle_breathing_table[0] = (motion_t){
+        .id = 1,
+        .duration_ms = 2000,
+        .servo = {
+            {
+                .mode = MOTION_SWEEP,
+                .min_angle = 0.0,
+                .max_angle = range / 2.0,
+                .step = step_slow,
+                .step_delay_ms = step_delay,
+            },
+            {
+                .mode = MOTION_SWEEP,
+                .min_angle = SERVO_HOME_ANGLE_1,
+                .max_angle = SERVO_HOME_ANGLE_1 + range / 2.0,
+                .step = step_slow,
+                .step_delay_ms = step_delay,
+            },
+        },
+    };
+
+    /* Phase 2: Hold peak — subtle wobble */
+    s_idle_breathing_table[1] = (motion_t){
+        .id = 2,
+        .duration_ms = 1500,
+        .servo = {
+            {
+                .mode = MOTION_SWEEP,
+                .min_angle = range / 4.0,
+                .max_angle = range / 2.0,
+                .step = step_slow * 0.5,
+                .step_delay_ms = step_delay * 2,
+            },
+            {
+                .mode = MOTION_SWEEP,
+                .min_angle = SERVO_HOME_ANGLE_1 + range / 4.0,
+                .max_angle = SERVO_HOME_ANGLE_1 + range / 2.0,
+                .step = step_slow * 0.5,
+                .step_delay_ms = step_delay * 2,
+            },
+        },
+    };
+
+    /* Phase 3: Exhale — return toward home */
+    s_idle_breathing_table[2] = (motion_t){
+        .id = 3,
+        .duration_ms = 2000,
+        .servo = {
+            {
+                .mode = MOTION_SWEEP,
+                .min_angle = -range / 4.0,
+                .max_angle = range / 2.0,
+                .step = step_slow,
+                .step_delay_ms = step_delay,
+            },
+            {
+                .mode = MOTION_SWEEP,
+                .min_angle = SERVO_HOME_ANGLE_1 - range / 4.0,
+                .max_angle = SERVO_HOME_ANGLE_1 + range / 2.0,
+                .step = step_slow,
+                .step_delay_ms = step_delay,
+            },
+        },
+    };
+
+    /* Phase 4: Rest — subtle tremor near home */
+    s_idle_breathing_table[3] = (motion_t){
+        .id = 4,
+        .duration_ms = 1500,
+        .servo = {
+            {
+                .mode = MOTION_SWEEP,
+                .min_angle = -range / 4.0,
+                .max_angle = range / 4.0,
+                .step = step_slow * 0.4,
+                .step_delay_ms = step_delay * 2,
+            },
+            {
+                .mode = MOTION_SWEEP,
+                .min_angle = SERVO_HOME_ANGLE_1 - range / 4.0,
+                .max_angle = SERVO_HOME_ANGLE_1 + range / 4.0,
+                .step = step_slow * 0.4,
+                .step_delay_ms = step_delay * 2,
+            },
+        },
+    };
+}
+
+static void idle_breathing_task_fn(void *arg)
+{
+    (void)arg;
+    motion_player_run_loop(&s_servo, s_idle_breathing_table, 4);
+    /* motion_player_run_loop only returns when stopped.
+     * Do NOT reset to home — let the next explicit servo command handle it. */
+    s_idle_breath_task = NULL;
+    vTaskDelete(NULL);
+}
+
+static void idle_motion_stop(void)
+{
+    if (s_idle_breath_task) {
+        motion_player_stop();
+        TaskHandle_t t = s_idle_breath_task;
+        TickType_t start = xTaskGetTickCount();
+        while (motion_player_is_running() &&
+               (xTaskGetTickCount() - start) < pdMS_TO_TICKS(500)) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        if (eTaskGetState(t) != eDeleted) {
+            vTaskDelete(t);
+        }
+        s_idle_breath_task = NULL;
+        motion_player_reset();
+    }
+}
+
+static void idle_motion_start(void)
+{
+    if (s_idle_breath_task) {
+        return;
+    }
+
+    /* Ensure servo hardware is initialized (lazy init on first use) */
+    if (ensure_servo() != ESP_OK) {
+        ESP_LOGE(TAG, "Idle breathing skipped: servo init failed");
+        return;
+    }
+
+    /* Stop any regular motion before starting idle breathing */
+    if (s_motion_task) {
+        stop_motion_task();
+    }
+
+    BaseType_t created = xTaskCreate(idle_breathing_task_fn, "idle_breath",
+                                     4096, NULL, 4, &s_idle_breath_task);
+    if (created != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create idle breathing task");
+        s_idle_breath_task = NULL;
+    } else {
+        ESP_LOGI(TAG, "Idle breathing started");
+    }
+}
+
+/* ---------- idle manager task ---------- */
+
+static void idle_manager_notify(void)
+{
+    if (s_idle_mgr_task) {
+        xTaskNotifyGive(s_idle_mgr_task);
+    }
+}
+
+static void idle_manager_task_fn(void *arg)
+{
+    (void)arg;
+    ESP_LOGI(TAG, "Idle manager started, delay=%lums", (unsigned long)s_idle_delay_ms);
+
+    while (true) {
+        /* Wait for activity notification or idle timeout */
+        uint32_t notified = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(s_idle_delay_ms));
+
+        if (notified == 0) {
+            /* Timeout: no activity for s_idle_delay_ms, start breathing */
+            if (s_idle_enabled) {
+                idle_motion_start();
+            }
+
+            /* Block until activity wakes us */
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+            /* Activity: stop breathing, loop back to countdown */
+            idle_motion_stop();
+        }
+        /* else: notified during countdown, just loop back with fresh timeout */
+    }
+}
+
+static void idle_manager_start(void)
+{
+    if (s_idle_mgr_task) {
+        /* Already running — notify to reset the countdown */
+        idle_manager_notify();
+        return;
+    }
+
+    BaseType_t created = xTaskCreate(idle_manager_task_fn, "idle_mgr",
+                                     4096, NULL, 3, &s_idle_mgr_task);
+    if (created != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create idle manager task");
+        s_idle_mgr_task = NULL;
+    }
+}
+
+/* ---------- public idle API ---------- */
+
+void cap_servo_on_activity(void)
+{
+    idle_manager_notify();
+}
+
+void cap_servo_on_response_complete(void)
+{
+    if (!s_idle_enabled) {
+        return;
+    }
+    idle_manager_notify();
+}
+
+void cap_servo_start_idle(void)
+{
+    if (!s_idle_enabled) {
+        return;
+    }
+
+    /* Pre-init servo hardware on the caller's stack (main task, plenty of
+     * headroom) so that idle_mgr never has to call the heavy MCPWM driver
+     * init path.  Safe to call repeatedly — ensure_servo is idempotent. */
+    if (ensure_servo() != ESP_OK) {
+        ESP_LOGE(TAG, "Idle not started: servo init failed");
+        return;
+    }
+
+    idle_manager_start();
 }
 
 static void motion_task_fn(void *arg)
@@ -346,6 +588,50 @@ static esp_err_t cap_servo_stop_execute(const char *input_json,
     return ESP_OK;
 }
 
+static esp_err_t cap_servo_set_idle_motion_execute(const char *input_json,
+                                                    const claw_cap_call_context_t *ctx,
+                                                    char *output, size_t output_size)
+{
+    (void)ctx;
+
+    cJSON *root = cJSON_Parse(input_json ? input_json : "{}");
+    if (!root) {
+        snprintf(output, output_size, "Error: invalid JSON");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    cJSON *enabled = cJSON_GetObjectItem(root, "enabled");
+    if (!cJSON_IsBool(enabled)) {
+        cJSON_Delete(root);
+        snprintf(output, output_size, "Error: 'enabled' (bool) is required");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    s_idle_enabled = cJSON_IsTrue(enabled);
+
+    cJSON *delay_item = cJSON_GetObjectItem(root, "delay_ms");
+    if (cJSON_IsNumber(delay_item)) {
+        int delay = delay_item->valueint;
+        if (delay >= 1000 && delay <= 60000) {
+            s_idle_delay_ms = (uint32_t)delay;
+        }
+    }
+
+    cJSON_Delete(root);
+
+    if (!s_idle_enabled) {
+        cap_servo_on_activity();
+        snprintf(output, output_size, "Idle motion disabled");
+    } else {
+        /* Wake the manager so the new delay takes effect immediately */
+        idle_manager_notify();
+        snprintf(output, output_size, "Idle motion enabled, delay=%lums",
+                 (unsigned long)s_idle_delay_ms);
+    }
+
+    return ESP_OK;
+}
+
 /* ---------- descriptors & group ---------- */
 
 static const claw_cap_descriptor_t s_servo_descriptors[] = {
@@ -433,6 +719,28 @@ static const claw_cap_descriptor_t s_servo_descriptors[] = {
             "}}",
         .execute = cap_servo_stop_execute,
     },
+    {
+        .id = "set_idle_motion",
+        .name = "set_idle_motion",
+        .family = "servo",
+        .description = "Enable or disable automatic idle breathing motion. "
+                       "When enabled, the servo performs slow, subtle breathing-like "
+                       "sweeps after a period of inactivity following each LLM response. "
+                       "A new user request immediately stops idle motion.",
+        .kind = CLAW_CAP_KIND_CALLABLE,
+        .cap_flags = CLAW_CAP_FLAG_CALLABLE_BY_LLM,
+        .input_schema_json =
+            "{\"type\":\"object\","
+            "\"properties\":{"
+              "\"enabled\":{\"type\":\"boolean\","
+                           "\"description\":\"true to enable idle breathing, false to disable\"},"
+              "\"delay_ms\":{\"type\":\"integer\","
+                            "\"minimum\":1000,\"maximum\":60000,"
+                            "\"description\":\"Idle delay in ms before breathing starts (1000-60000), default 5000\"}"
+            "},"
+            "\"required\":[\"enabled\"]}",
+        .execute = cap_servo_set_idle_motion_execute,
+    },
 };
 
 static const claw_cap_group_t s_servo_group = {
@@ -446,5 +754,6 @@ esp_err_t cap_servo_register_group(void)
     if (claw_cap_group_exists(s_servo_group.group_id)) {
         return ESP_OK;
     }
+    init_idle_breathing_table();
     return claw_cap_register_group(&s_servo_group);
 }

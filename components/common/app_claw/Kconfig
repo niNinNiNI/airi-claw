@@ -255,6 +255,28 @@ menu "App Claw Config"
             help
                 Half of the servo's total angular travel. 135 = 270 degree servo, 90 = 180 degree servo.
 
+        config APP_CLAW_SERVO_IDLE_DELAY_MS
+            int "Idle breathing cooldown delay (ms)"
+            depends on APP_CLAW_CAP_SERVO
+            default 5000
+            range 1000 60000
+            help
+                After each LLM response completes, the servo waits this many
+                milliseconds of inactivity before entering idle breathing motion.
+                Shorter values make the device feel more "alive" but may interrupt
+                user interactions. Longer values reduce unnecessary mechanical wear.
+
+        config APP_CLAW_SERVO_IDLE_SWEEP_RANGE
+            int "Idle breathing sweep amplitude (degrees)"
+            depends on APP_CLAW_CAP_SERVO
+            default 8
+            range 2 30
+            help
+                Angular amplitude of the idle breathing sweep. A larger value
+                creates more visible motion; a smaller value is subtler.
+                Channel 0 oscillates around 0 degrees; channel 1 oscillates
+                around 60 degrees.
+
     endmenu
 
     menu "App Claw Lua Modules"

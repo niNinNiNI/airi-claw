@@ -65,11 +65,23 @@
 
 **返回：** `"Servo stopped and reset to 0°"` 或 `"Servo stopped"`
 
+### set_idle_motion
+
+开关空闲呼吸动作，并可配置空闲延迟。
+
+**参数：**
+- `enabled` (bool, 必须): `true` 开启空闲呼吸，`false` 关闭
+- `delay_ms` (int, 可选): 空闲延迟（毫秒），范围 1000-60000，默认 5000
+
+**返回：** `"Idle motion enabled, delay=5000ms"` 或 `"Idle motion disabled"`
+
 ## 调用示例
 
 ```
 cap call set_servo_angle {"channel":0,"angle":45,"duration_ms":1000}
 cap call stop_servo {"reset":true}
+cap call set_idle_motion {"enabled":false}
+cap call set_idle_motion {"enabled":true,"delay_ms":3000}
 ```
 
 ## 注意事项
@@ -78,3 +90,15 @@ cap call stop_servo {"reset":true}
 - play_motion_sequence 一次只能运行一个序列，新调用会自动停止旧序列
 - set_servo_angle 会先停止正在运行的 motion 序列再执行
 - 默认 GPIO: 通道0→GPIO4, 通道1→GPIO5（可通过 menuconfig 修改）
+
+## 闲置呼吸动作（Idle Breathing）
+
+设备在 LLM 响应完成后进入闲置状态。闲置超过配置的延迟时间（默认 5 秒）后，
+舵机会自动执行缓慢的呼吸动作——以 ~3°/s 的速度在归位位置附近微幅扫摆，
+赋予设备"活着的"感觉。新的用户请求会立即停止呼吸动作。
+
+呼吸动作的幅度和延迟可通过 menuconfig 调整：
+- `APP_CLAW_SERVO_IDLE_DELAY_MS`：空闲延迟（毫秒，默认 5000）
+- `APP_CLAW_SERVO_IDLE_SWEEP_RANGE`：扫摆幅度（度，默认 8）
+
+运行时可通过 `set_idle_motion` 工具开关此功能并调整延迟时间。

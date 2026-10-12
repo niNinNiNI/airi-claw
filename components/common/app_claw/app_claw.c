@@ -32,6 +32,9 @@
 #if CONFIG_APP_CLAW_CAP_TIME
 #include "cap_time.h"
 #endif
+#if CONFIG_APP_CLAW_CAP_SERVO
+#include "cap_servo.h"
+#endif
 
 static const char *TAG = "app_claw";
 static const char *APP_STARTUP_EVENT_SOURCE_CAP = "app_claw";
@@ -141,6 +144,30 @@ static bool app_llm_is_configured(const app_claw_config_t *config)
            config->llm_backend_type[0];
 }
 
+#if CONFIG_APP_CLAW_CAP_SERVO
+static claw_core_request_start_fn s_delegated_request_start = NULL;
+static void *s_delegated_request_start_ctx = NULL;
+
+static esp_err_t app_claw_servo_request_start(const claw_core_request_t *request,
+                                               void *user_ctx)
+{
+    (void)user_ctx;
+    cap_servo_on_activity();
+    if (s_delegated_request_start) {
+        return s_delegated_request_start(request, s_delegated_request_start_ctx);
+    }
+    return ESP_OK;
+}
+
+static void app_claw_servo_completion_observer(const claw_core_completion_summary_t *summary,
+                                                void *user_ctx)
+{
+    (void)summary;
+    (void)user_ctx;
+    cap_servo_on_response_complete();
+}
+#endif
+
 #if CONFIG_APP_CLAW_CAP_SCHEDULER && CONFIG_APP_CLAW_CAP_TIME
 static void app_time_sync_success(bool had_valid_time, void *ctx)
 {
@@ -249,6 +276,12 @@ esp_err_t app_claw_start(const app_claw_config_t *config,
 #else
     core_config.append_session_turn = claw_memory_append_session_turn_callback;
 #endif
+#if CONFIG_APP_CLAW_CAP_SERVO
+    s_delegated_request_start = core_config.on_request_start;
+    s_delegated_request_start_ctx = core_config.on_request_start_user_ctx;
+    core_config.on_request_start = app_claw_servo_request_start;
+    core_config.on_request_start_user_ctx = NULL;
+#endif
     core_config.call_cap = claw_cap_call_from_core;
     core_config.task_stack_size = 16 * 1024;
     core_config.task_priority = 5;
@@ -287,6 +320,11 @@ esp_err_t app_claw_start(const app_claw_config_t *config,
                             TAG, "Failed to add skills list provider");
         ESP_RETURN_ON_ERROR(claw_core_add_context_provider(&claw_cap_tools_provider),
                             TAG, "Failed to add cap tools provider");
+#if CONFIG_APP_CLAW_CAP_SERVO
+        ESP_RETURN_ON_ERROR(
+            claw_core_add_completion_observer(app_claw_servo_completion_observer, NULL),
+            TAG, "Failed to add servo completion observer");
+#endif
         ESP_RETURN_ON_ERROR(claw_core_start(), TAG, "Failed to start claw_core");
     }
 
@@ -311,6 +349,10 @@ esp_err_t app_claw_start(const app_claw_config_t *config,
 #endif
     ESP_RETURN_ON_ERROR(app_claw_publish_startup_event(), TAG,
                         "Failed to publish startup event");
+
+#if CONFIG_APP_CLAW_CAP_SERVO
+    cap_servo_start_idle();
+#endif
 
     return ESP_OK;
 }

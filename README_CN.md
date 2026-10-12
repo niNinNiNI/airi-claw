@@ -35,6 +35,22 @@
 
 **ESP-Claw** 是乐鑫推出的面向物联网设备的 **Chat Coding「聊天造物」** 式 AI Agent 框架，以对话定义设备行为，在乐鑫芯片上本地完成感知、决策与执行的完整闭环。ESP-Claw 自 OpenClaw 理念出发，用 C 语言重新实现，轻盈、智能、成长。仅需一块几美元的 ESP32 系列芯片，便可体验 ESP-Claw 的轻灵特性。
 
+## 📌 本仓库说明：基于 ESP-Claw 的二次开发
+
+本仓库是基于乐鑫官方开源框架 [espressif/esp-claw](https://github.com/espressif/esp-claw)（Apache-2.0）的二次开发项目，产品方向为「爱莉 Edge Agent」端侧 AI 智能体。**框架核心（`components/claw_*`、`components/lua_modules/`）来自上游项目**，以下为本人新增与修改的部分：
+
+| 类别 | 规模 | 内容 |
+| --- | --- | --- |
+| 新增 Capability 能力模块 | 3 个 / 约 3.3k 行 C | `cap_voice`（TTS 播放）、`cap_asr`（ES7210 麦克风采集）、`cap_servo`（舵机控制） |
+| 新增视频播放组件 | 14 文件 / 4.3k 行 | `application/edge_agent/components/video_player/`：MJPEG 流式播放、PPA 硬件混合、`emotion_video_controller` 情绪动作切换、显示仲裁与卡顿恢复 |
+| 语音链路公共层 | 3 文件 / 324 行 | `components/common/voice_ws_common/`：麦克风采集 → WebSocket → 云端 ASR → LLM → TTS → 本地播放的事件驱动闭环 |
+| 板级与系统适配 | 4 套板卡 | 含 `esp32_p4_wifi6_touch_lcd_4_3`；8/16/32MB 三级分区规范；ST7701 面板镜像修复；PSRAM/NVS 崩溃修复 |
+| 角色动作资产管线 | 622 帧 | `Hiyori/` 10 组 Live2D 动作 + `convert_to_mjpeg.sh` 转码管线 |
+| 技术文档 | 72 篇 / 1.8 万行 | `ARCHITECTURE_CN.md`、语音模块架构、舵机控制架构、情绪切换系统架构等 |
+| 对上游代码的修改 | 50 文件 / +604 / −209 | `app_capabilities.c`、`display_arbiter.c`、`app_claw/Kconfig` 等 |
+
+上游框架及其中引用的第三方组件版权归各自作者所有，遵循 Apache-2.0 许可。
+
 <div align="center">
   <img alt="From traditional IoT to Edge Agent" src="./docs/static/from-traditional-iot-to-edge-agent.webp" width="90%" />
 </div>

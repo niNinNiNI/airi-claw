@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP-Claw — AI Agent 运行时固件架构</title>
+
+  <!-- Fonts: Fontshare — Clash Display + Satoshi -->
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=satoshi@300,400,500,700&display=swap" />
+
+  <style>
+    /* ===========================================
+       CSS CUSTOM PROPERTIES — Neon Cyber Theme
+       =========================================== */
+    :root {
+      --bg-primary: #0a0f1c;
+      --bg-secondary: #111827;
+      --bg-card: rgba(17, 24, 39, 0.8);
+      --text-primary: #e8eaed;
+      --text-secondary: #8892b0;
+      --text-muted: #5a6480;
+      --accent: #00ffcc;
+      --accent-glow: rgba(0, 255, 204, 0.25);
+      --accent-alt: #ff00aa;
+      --accent-alt-glow: rgba(255, 0, 170, 0.2);
+      --accent-warn: #ffaa00;
+      --border-subtle: rgba(255, 255, 255, 0.06);
+
+      --font-display: 'Clash Display', sans-serif;
+      --font-body: 'Satoshi', sans-serif;
+
+      --title-size: clamp(1.5rem, 5vw, 4rem);
+      --h2-size: clamp(1.25rem, 3.5vw, 2.5rem);
+      --h3-size: clamp(1rem, 2.5vw, 1.75rem);
+      --body-size: clamp(0.75rem, 1.5vw, 1.125rem);
+      --small-size: clamp(0.65rem, 1vw, 0.875rem);
+      --slide-padding: clamp(1rem, 4vw, 4rem);
+      --content-gap: clamp(0.5rem, 2vw, 2rem);
+      --element-gap: clamp(0.25rem, 1vw, 1rem);
+
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --duration-normal: 0.6s;
+    }
+
+    /* ===========================================
+       VIEWPORT FITTING — from viewport-base.css
+       =========================================== */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body { height: 100%; overflow-x: hidden; }
+    html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+
+    .slide {
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .slide-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      max-height: 100%;
+      overflow: hidden;
+      padding: var(--slide-padding);
+    }
+
+    .card, .container, .content-box {
+      max-width: min(90vw, 1000px);
+      max-height: min(80vh, 700px);
+    }
+
+    .feature-list, .bullet-list { gap: clamp(0.4rem, 1vh, 1rem); }
+    .feature-list li, .bullet-list li { font-size: var(--body-size); line-height: 1.4; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+      gap: clamp(0.5rem, 1.5vw, 1rem);
+    }
+
+    img, .image-container { max-width: 100%; max-height: min(50vh, 400px); object-fit: contain; }
+
+    /* ===========================================
+       GLOBAL STYLES
+       =========================================== */
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: var(--body-size);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0, 255, 204, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 204, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Ambient glow orbs */
+    body::after {
+      content: '';
+      position: fixed;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 255, 204, 0.06) 0%, transparent 70%);
+      top: -200px; right: -200px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .slide { position: relative; z-index: 1; }
+
+    /* ===========================================
+       ANIMATIONS
+       =========================================== */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition:
+        opacity var(--duration-normal) var(--ease-out-expo),
+        transform var(--duration-normal) var(--ease-out-expo);
+    }
+    .slide.visible .reveal { opacity: 1; transform: translateY(0); }
+    .reveal:nth-child(1) { transition-delay: 0.1s; }
+    .reveal:nth-child(2) { transition-delay: 0.2s; }
+    .reveal:nth-child(3) { transition-delay: 0.3s; }
+    .reveal:nth-child(4) { transition-delay: 0.4s; }
+    .reveal:nth-child(5) { transition-delay: 0.5s; }
+    .reveal:nth-child(6) { transition-delay: 0.55s; }
+    .reveal:nth-child(7) { transition-delay: 0.6s; }
+    .reveal:nth-child(8) { transition-delay: 0.65s; }
+
+    /* Scale reveal for cards */
+    .reveal-scale {
+      opacity: 0;
+      transform: scale(0.92);
+      transition: opacity 0.6s, transform 0.6s var(--ease-out-expo);
+    }
+    .slide.visible .reveal-scale { opacity: 1; transform: scale(1); }
+
+    /* ===========================================
+       PROGRESS BAR
+       =========================================== */
+    .progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+      z-index: 1000;
+      transition: width 0.2s ease;
+      border-radius: 0 2px 2px 0;
+    }
+
+    /* ===========================================
+       NAVIGATION DOTS
+       =========================================== */
+    .nav-dots {
+      position: fixed;
+      right: clamp(0.5rem, 2vw, 1.5rem);
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: clamp(0.3rem, 0.8vh, 0.6rem);
+      z-index: 1000;
+    }
+    .nav-dot {
+      width: clamp(6px, 1vw, 10px);
+      height: clamp(6px, 1vw, 10px);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .nav-dot.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    /* ===========================================
+       TITLE SLIDE
+       =========================================== */
+    .title-slide {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    .title-slide .slide-content {
+      align-items: center;
+      gap: var(--content-gap);
+    }
+    .title-slide h1 {
+      font-family: var(--font-display);
+      font-size: var(--title-size);
+      font-weight: 700;
+      line-height: 1.1;
+      background: linear-gradient(135deg, var(--accent) 0%, #fff 50%, var(--accent-alt) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .title-slide .subtitle {
+      font-size: var(--h3-size);
+      color: var(--text-secondary);
+      font-weight: 400;
+    }
+    .title-slide .tagline {
+      font-size: var(--small-size);
+      color: var(--text-muted);
+      font-family: var(--font-body);
+      letter-spacing: 0.05em;
+    }
+    .title-badge {
+      display: inline-block;
+      padding: clamp(0.3rem, 0.8vh, 0.5rem) clamp(0.8rem, 2vw, 1.5rem);
+      border: 1px solid rgba(0, 255, 204, 0.3);
+      border-radius: 999px;
+      font-size: var(--small-size);
+      color: var(--accent);
+      font-family: var(--font-body);
+      letter-spacing: 0.1em;
+    }
+
+    /* ===========================================
+       SECTION SLIDES (divider)
+       =========================================== */
+    .section-slide {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    .section-slide .slide-number {
+      font-family: var(--font-display);
+      font-size: clamp(4rem, 12vw, 8rem);
+      font-weight: 700;
+      color: rgba(0, 255, 204, 0.06);
+      line-height: 1;
+    }
+    .section-slide h2 {
+      font-family: var(--font-display);
+      font-size: var(--h2-size);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-top: calc(-1 * clamp(1rem, 3vw, 2rem));
+    }
+
+    /* ===========================================
+       CONTENT SLIDES
+       =========================================== */
+    .content-slide h2 {
+      font-family: var(--font-display);
+      font-size: var(--h2-size);
+      font-weight: 600;
+      margin-bottom: var(--content-gap);
+      color: var(--text-primary);
+    }
+    .content-slide h2 .accent { color: var(--accent); }
+    .content-slide h2 .alt { color: var(--accent-alt); }
+
+    .bullet-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+    }
+    .bullet-list li {
+      padding-left: clamp(1rem, 2vw, 1.5rem);
+      position: relative;
+      color: var(--text-secondary);
+    }
+    .bullet-list li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent-glow);
+    }
+    .bullet-list li strong { color: var(--text-primary); }
+
+    /* ===========================================
+       CARD GRID
+       =========================================== */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+      gap: clamp(0.5rem, 1.2vw, 1rem);
+      max-width: 100%;
+    }
+    .card-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: clamp(6px, 1vw, 12px);
+      padding: clamp(0.6rem, 1.5vw, 1.2rem);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card-item:hover {
+      border-color: rgba(0, 255, 204, 0.3);
+      box-shadow: 0 0 20px rgba(0, 255, 204, 0.05);
+    }
+    .card-item h3 {
+      font-family: var(--font-display);
+      font-size: clamp(0.85rem, 1.5vw, 1.1rem);
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 0.3em;
+    }
+    .card-item p {
+      font-size: var(--small-size);
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    /* ===========================================
+       CODE BLOCK
+       =========================================== */
+    .code-block {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-subtle);
+      border-radius: clamp(4px, 0.8vw, 8px);
+      padding: clamp(0.5rem, 1.2vw, 1rem);
+      font-family: 'Satoshi', monospace;
+      font-size: var(--small-size);
+      color: var(--text-secondary);
+      overflow: hidden;
+      max-height: min(50vh, 400px);
+    }
+    .code-block .kw { color: var(--accent-alt); }
+    .code-block .fn { color: var(--accent); }
+    .code-block .str { color: var(--accent-warn); }
+    .code-block .cmt { color: var(--text-muted); }
+
+    /* ===========================================
+       TWO-COLUMN
+       =========================================== */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--content-gap);
+      max-width: 100%;
+    }
+    @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ===========================================
+       ARCHITECTURE STACK VISUAL
+       =========================================== */
+    .stack-visual {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-width: min(90vw, 600px);
+    }
+    .stack-layer {
+      padding: clamp(0.4rem, 1vh, 0.7rem) clamp(0.6rem, 2vw, 1.2rem);
+      border-radius: clamp(3px, 0.5vw, 6px);
+      font-size: var(--small-size);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+    }
+    .stack-layer .layer-num {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: var(--body-size);
+      opacity: 0.7;
+    }
+    .stack-l8 { background: rgba(0, 255, 204, 0.12); color: var(--accent); }
+    .stack-l7 { background: rgba(0, 255, 204, 0.09); color: #66ffdd; }
+    .stack-l6 { background: rgba(255, 0, 170, 0.09); color: #ff66cc; }
+    .stack-l5 { background: rgba(255, 0, 170, 0.12); color: var(--accent-alt); }
+    .stack-l4 { background: rgba(255, 170, 0, 0.09); color: var(--accent-warn); }
+    .stack-l3 { background: rgba(100, 180, 255, 0.09); color: #64b4ff; }
+    .stack-l2 { background: rgba(150, 150, 220, 0.08); color: #9696dc; }
+    .stack-l1 { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); }
+
+    /* ===========================================
+       FLOW DIAGRAM
+       =========================================== */
+    .flow-row {
+      display: flex;
+      align-items: center;
+      gap: clamp(0.3rem, 1vw, 0.8rem);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .flow-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: clamp(4px, 0.8vw, 8px);
+      padding: clamp(0.4rem, 1vh, 0.7rem) clamp(0.6rem, 1.5vw, 1rem);
+      font-size: var(--small-size);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .flow-box.highlight { border-color: var(--accent); color: var(--accent); }
+    .flow-arrow { color: var(--text-muted); font-size: var(--small-size); }
+
+    /* ===========================================
+       KEYBOARD HINT
+       =========================================== */
+    .keyboard-hint {
+      position: fixed;
+      bottom: clamp(0.5rem, 2vw, 1.5rem);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: var(--small-size);
+      color: var(--text-muted);
+      z-index: 1000;
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    .keyboard-hint kbd {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 0.1em 0.4em;
+      font-family: inherit;
+    }
+
+    /* ===========================================
+       RESPONSIVE BREAKPOINTS
+       =========================================== */
+    @media (max-height: 700px) {
+      :root {
+        --slide-padding: clamp(0.75rem, 3vw, 2rem);
+        --content-gap: clamp(0.4rem, 1.5vw, 1rem);
+        --title-size: clamp(1.25rem, 4.5vw, 2.5rem);
+        --h2-size: clamp(1rem, 3vw, 1.75rem);
+      }
+    }
+    @media (max-height: 600px) {
+      :root {
+        --slide-padding: clamp(0.5rem, 2.5vw, 1.5rem);
+        --content-gap: clamp(0.3rem, 1vw, 0.75rem);
+        --title-size: clamp(1.1rem, 4vw, 2rem);
+        --body-size: clamp(0.7rem, 1.2vw, 0.95rem);
+      }
+      .nav-dots, .keyboard-hint { display: none; }
+    }
+    @media (max-height: 500px) {
+      :root {
+        --slide-padding: clamp(0.4rem, 2vw, 1rem);
+        --title-size: clamp(1rem, 3.5vw, 1.5rem);
+        --h2-size: clamp(0.9rem, 2.5vw, 1.25rem);
+        --body-size: clamp(0.65rem, 1vw, 0.85rem);
+      }
+    }
+    @media (max-width: 600px) {
+      :root { --title-size: clamp(1.25rem, 7vw, 2.5rem); }
+      .grid, .card-grid { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+      }
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Progress Bar -->
+  <div class="progress-bar" id="progressBar"></div>
+
+  <!-- Navigation Dots -->
+  <nav class="nav-dots" id="navDots"></nav>
+
+  <!-- Keyboard Hint -->
+  <div class="keyboard-hint">
+    Press <kbd>←</kbd> <kbd>→</kbd> or <kbd>Space</kbd> to navigate · Swipe on mobile
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 0: TITLE                                                    -->
+  <!-- ================================================================ -->
+  <section class="slide title-slide" data-index="0">
+    <div class="slide-content">
+      <span class="title-badge reveal">ESP-IDF v5.5.4 · FreeRTOS</span>
+      <h1 class="reveal">ESP-Claw</h1>
+      <p class="subtitle reveal">AI Agent 运行时固件架构</p>
+      <p class="tagline reveal">Sense → Decide → Act · 完全本地化的设备端 AI Agent</p>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 1: WHAT IS ESP-CLAW                                        -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="1">
+    <div class="slide-content">
+      <h2 class="reveal"><span class="accent">ESP-Claw</span> 是什么？</h2>
+      <div class="two-col reveal">
+        <div>
+          <ul class="bullet-list">
+            <li><strong>AI Agent 运行时</strong> — 运行在 ESP32 系列芯片上</li>
+            <li><strong>Sense → Decide → Act</strong> — 感知→推理→行动，完整的设备端闭环</li>
+            <li><strong>LLM 驱动推理</strong> — 支持 OpenAI / Anthropic / Custom 三种后端</li>
+            <li><strong>Lua 脚本执行硬件操作</strong> — LLM 编写 Lua 代码操控 GPIO、I2C、PWM 等外设</li>
+          </ul>
+        </div>
+        <div>
+          <ul class="bullet-list">
+            <li><strong>多 IM 平台接入</strong> — QQ、飞书、Telegram、微信、WebIM</li>
+            <li><strong>语音交互</strong> — TTS 文本转语音 + ASR 语音识别</li>
+            <li><strong>虚拟角色</strong> — Hiyori 角色动画，10 种情绪表达</li>
+            <li><strong>17 块开发板支持</strong> — 7 个厂商，YAML 驱动板卡配置</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 2: 8-LAYER ARCHITECTURE                                    -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="2">
+    <div class="slide-content">
+      <h2 class="reveal"><span class="accent">8 层</span> 架构总览</h2>
+      <div class="two-col reveal">
+        <div class="stack-visual">
+          <div class="stack-layer stack-l8"><span class="layer-num">8</span> IM 通信层 — QQ · 飞书 · Telegram · 微信 · WebIM</div>
+          <div class="stack-layer stack-l7"><span class="layer-num">7</span> HTTP 服务层 — REST API · WebSocket · Captive DNS</div>
+          <div class="stack-layer stack-l6"><span class="layer-num">6</span> 应用组装层 — main.c 启动序列 · app_claw 组装</div>
+          <div class="stack-layer stack-l5"><span class="layer-num">5</span> 核心引擎层 — ReAct 循环 · 事件路由 · 记忆 · 技能</div>
+          <div class="stack-layer stack-l4"><span class="layer-num">4</span> 能力插件层 — 19 个可调用工具 (Capabilities)</div>
+          <div class="stack-layer stack-l3"><span class="layer-num">3</span> Lua 模块层 — 6 驱动 + 21 功能模块</div>
+          <div class="stack-layer stack-l2"><span class="layer-num">2</span> 硬件抽象层 — Board Manager · Display Arbiter</div>
+          <div class="stack-layer stack-l1"><span class="layer-num">1</span> ESP32 硬件 — LCD · 触摸 · 音频 · 摄像头 · SD · LED</div>
+        </div>
+        <div>
+          <p style="color: var(--text-secondary); font-size: var(--body-size); margin-bottom: var(--element-gap);">
+            <strong style="color: var(--text-primary);">自底向上</strong>，每一层为上一层提供抽象。
+            底层 3 层负责硬件交互，中间 3 层构成 Agent 大脑，
+            顶层 2 层提供外部通信能力。
+          </p>
+          <p style="color: var(--text-muted); font-size: var(--small-size);">
+            FreeRTOS 任务优先级统一为 5，时间片轮转调度。
+            各模块通过 Queue 进行 IPC 通信。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 3: DATA FLOW                                                -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="3">
+    <div class="slide-content">
+      <h2 class="reveal">核心 <span class="accent">数据流</span></h2>
+      <div class="reveal" style="margin-bottom: var(--content-gap);">
+        <div class="flow-row">
+          <div class="flow-box">📨 IM / 定时器 / 传感器</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box highlight">Event Router</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box highlight">claw_core (LLM 推理)</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box">Capability 执行</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box">📤 IM 通道回复</div>
+        </div>
+      </div>
+      <div class="card-grid reveal">
+        <div class="card-item">
+          <h3>Event Router</h3>
+          <p>事件总线，6 种动作类型、5 种会话策略。规则 JSON 热重载。</p>
+        </div>
+        <div class="card-item">
+          <h3>ReAct 循环</h3>
+          <p>取请求→收集上下文→LLM 调用→工具执行→循环。最多 32 轮。</p>
+        </div>
+        <div class="card-item">
+          <h3>Context Providers</h3>
+          <p>5 个提供者注入：档案、长期记忆、会话历史、技能列表、工具定义。</p>
+        </div>
+        <div class="card-item">
+          <h3>Outbound Binding</h3>
+          <p>各 IM 平台注册发送函数，Event Router 自动路由到正确通道。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 4: PROJECT INIT & BUILD                                    -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="4">
+    <div class="slide-content">
+      <h2 class="reveal">1. <span class="accent">项目初始化</span> 与构建骨架</h2>
+      <div class="two-col reveal">
+        <div>
+          <ul class="bullet-list">
+            <li><strong>ESP-IDF 项目骨架</strong> — CMakeLists.txt · main.c · sdkconfig.defaults</li>
+            <li><strong>idf_component.yml</strong> — esp_board_manager · esp_websocket_client 等外部依赖</li>
+            <li><strong>CMake 构建脚本</strong> — ESP-IDF 补丁 (LCD 采样边沿 + USB IAD 修复) · 分区表自动选择 · FATFS 镜像生成</li>
+          </ul>
+        </div>
+        <div>
+          <ul class="bullet-list">
+            <li><strong>Kconfig 菜单</strong> — Wi-Fi 默认值 · 搜索 API Key · 视频播放器配置</li>
+            <li><strong>sdkconfig.defaults</strong> — PSRAM 配置 · FreeRTOS 栈大小 · FATFS 长文件名 · LVGL buffer 245KB</li>
+            <li><strong>Skill/Lua 同步钩子</strong> — 构建时自动同步 SKILL.md 和 Lua 文档到 FATFS 镜像</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 5: BOARD SUPPORT LAYER                                     -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="5">
+    <div class="slide-content">
+      <h2 class="reveal">2. <span class="accent">板卡支持层</span></h2>
+      <div class="two-col reveal">
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent);font-size:var(--body-size);margin-bottom:0.3em;">YAML 描述文件 (每块板 3 个)</h3>
+          <ul class="bullet-list">
+            <li><strong>board_info.yaml</strong> — 芯片型号、板卡名称、制造商</li>
+            <li><strong>board_devices.yaml</strong> — 设备声明 (LCD/Audio/Camera/Touch/IMU) 及引脚映射</li>
+            <li><strong>board_peripherals.yaml</strong> — 外设引脚详细分配 (SPI/I2C/I2S/SDMMC)</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent);font-size:var(--body-size);margin-bottom:0.3em;">板级初始化</h3>
+          <ul class="bullet-list">
+            <li><strong>setup_device.c</strong> — 电源管理 · 上电顺序 · IO 扩展器</li>
+            <li><strong>自动生成代码</strong> — gen_board_info.c · gen_board_device_config.c 等 5 个文件</li>
+            <li><strong>17 块板卡</strong> — 覆盖 7 个厂商 (Espressif/M5Stack/DFRobot/LilyGO/Movecall/Waveshare/Nologo)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 6: COMMON INFRASTRUCTURE                                   -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="6">
+    <div class="slide-content">
+      <h2 class="reveal">3. <span class="accent">公共基础设施层</span></h2>
+      <div class="card-grid reveal">
+        <div class="card-item">
+          <h3>📶 wifi_manager</h3>
+          <p>6 状态 Wi-Fi 状态机。指数退避重连 (1s→30s)。AP-STA 共存。</p>
+        </div>
+        <div class="card-item">
+          <h3>🔗 http_reuse</h3>
+          <p>LRU HTTP 连接池。LLM/Search/MCP 共享复用。减少 TLS 握手开销。</p>
+        </div>
+        <div class="card-item">
+          <h3>🖥️ display_arbiter</h3>
+          <p>LCD 访问仲裁。非抢占式。动画/视频/LVGL/Painter 串行化。</p>
+        </div>
+        <div class="card-item">
+          <h3>🎨 ESP Painter</h3>
+          <p>轻量绘图库。9 种点阵字体 (12-48px)。嵌入式 C 数组。</p>
+        </div>
+        <div class="card-item">
+          <h3>🔒 Captive DNS</h3>
+          <p>DNS 劫持配网门户。UDP 53 端口。AP 模式激活。</p>
+        </div>
+        <div class="card-item">
+          <h3>💾 settings (NVS)</h3>
+          <p>NVS 键值存储封装。Wi-Fi/LLM/IM/能力开关持久化。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 7: LUA MODULE LAYER                                        -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="7">
+    <div class="slide-content">
+      <h2 class="reveal">4. <span class="accent">Lua 模块层</span> — LLM 操控硬件的桥梁</h2>
+      <div class="reveal" style="margin-bottom: var(--element-gap);">
+        <p style="color:var(--text-muted);font-size:var(--small-size);">
+          LLM 生成 Lua 脚本 → 调用 C 函数 → 操控硬件外设。每个模块通过 <code style="color:var(--accent);">luaL_Reg</code> 数组注册。
+        </p>
+      </div>
+      <div class="two-col reveal">
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent);font-size:var(--body-size);margin-bottom:0.3em;">6 个硬件驱动 (lua_driver_*)</h3>
+          <ul class="bullet-list">
+            <li><strong>GPIO</strong> — 读写、中断、上下拉</li>
+            <li><strong>ADC</strong> — 模数转换、校准</li>
+            <li><strong>I2C</strong> — 总线读写、多端口管理</li>
+            <li><strong>MCPWM</strong> — 电机/舵机 PWM</li>
+            <li><strong>Touch</strong> — 电容触摸读取</li>
+            <li><strong>UART</strong> — 串口通信</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent-alt);font-size:var(--body-size);margin-bottom:0.3em;">21 个功能模块 (lua_module_*)</h3>
+          <ul class="bullet-list">
+            <li><strong>system</strong> · <strong>display</strong> (LVGL) · <strong>camera</strong> · <strong>audio</strong></li>
+            <li><strong>led_strip</strong> (WS2812) · <strong>imu</strong> · <strong>env_sensor</strong></li>
+            <li><strong>storage</strong> (FATFS) · <strong>ir</strong> · <strong>button</strong> · <strong>knob</strong></li>
+            <li><strong>event_publisher</strong> · <strong>call_capability</strong> · <strong>board_manager</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 8: CORE ENGINE — 5 MODULES                                 -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="8">
+    <div class="slide-content">
+      <h2 class="reveal">5. <span class="accent">核心引擎层</span> — Agent 的大脑</h2>
+      <div class="card-grid reveal">
+        <div class="card-item">
+          <h3>🧩 claw_cap</h3>
+          <p>能力插件框架。JSON Schema 描述符注册。LLM 可见性白名单控制。</p>
+        </div>
+        <div class="card-item">
+          <h3>🔀 claw_event_router</h3>
+          <p>事件总线。6 种动作类型。5 种会话策略。规则 JSON 热重载。</p>
+        </div>
+        <div class="card-item">
+          <h3>🧠 claw_memory</h3>
+          <p>记忆系统。FULL (JSONL 结构化) 与 LIGHTWEIGHT (MEMORY.md) 双模式。</p>
+        </div>
+        <div class="card-item">
+          <h3>📋 claw_skill</h3>
+          <p>技能系统。SKILL.md + YAML frontmatter。动态解锁能力组可见性。</p>
+        </div>
+        <div class="card-item" style="grid-column: 1 / -1;">
+          <h3>🔄 claw_core — ReAct 推理核心</h3>
+          <p>请求队列→上下文收集→LLM API 调用→工具执行→循环。最多 32 轮。3 种后端。流式响应。请求中断。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 9: CLAW_CORE — REACT LOOP                                  -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="9">
+    <div class="slide-content">
+      <h2 class="reveal"><span class="accent">claw_core</span> — ReAct 循环详解</h2>
+      <div class="two-col reveal">
+        <div>
+          <ol style="color:var(--text-secondary);font-size:var(--body-size);padding-left:1.5em;display:flex;flex-direction:column;gap:0.3em;">
+            <li>从请求队列取出一条请求</li>
+            <li>依次调用 5 个 <strong style="color:var(--accent);">Context Provider</strong></li>
+            <li>拼装消息列表：系统提示词 + 上下文 + 历史 + 当前请求</li>
+            <li>通过 LLM 运行时调用远程 API (支持流式)</li>
+            <li>解析响应：纯文本 → 回复用户；工具调用 → 执行后回到步骤 4</li>
+            <li>最多 <strong style="color:var(--accent-alt);">32 轮</strong>，超过强制终止</li>
+          </ol>
+        </div>
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent);font-size:var(--body-size);margin-bottom:0.3em;">3 种 LLM 后端</h3>
+          <ul class="bullet-list">
+            <li><strong>Anthropic</strong> — Messages API · thinking 块保留</li>
+            <li><strong>OpenAI 兼容</strong> — Chat Completions API</li>
+            <li><strong>Custom</strong> — 任意 HTTP 请求格式</li>
+          </ul>
+          <p style="color:var(--text-muted);font-size:var(--small-size);margin-top:0.5em;">
+            FreeRTOS 任务：栈 16KB · 优先级 5 · 请求队列 4 · 响应队列 4
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 10: EVENT ROUTER + MEMORY                                  -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="10">
+    <div class="slide-content">
+      <h2 class="reveal"><span class="accent">Event Router</span> + <span class="alt">Memory</span></h2>
+      <div class="two-col reveal">
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent);font-size:var(--body-size);margin-bottom:0.3em;">事件路由器</h3>
+          <ul class="bullet-list">
+            <li><strong>6 种动作</strong>：CALL_CAP · RUN_AGENT · RUN_SCRIPT · EMIT_EVENT · SEND_MESSAGE · DROP</li>
+            <li><strong>5 种会话策略</strong>：新会话·追加·替换等</li>
+            <li><strong>出站绑定</strong>：IM 平台注册发送函数</li>
+            <li>独立 FreeRTOS 任务：栈 8KB · 优先级 5</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent-alt);font-size:var(--body-size);margin-bottom:0.3em;">记忆系统</h3>
+          <ul class="bullet-list">
+            <li><strong>FULL 模式</strong>：JSONL 记录 + 索引 + 小模型自动提取</li>
+            <li><strong>LIGHTWEIGHT 模式</strong>：单 MEMORY.md 文件</li>
+            <li><strong>5 个 Context Provider</strong> 供 claw_core 注入</li>
+            <li>内部独立 LLM 客户端用于自动提取</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 11: CAP + SKILL FRAMEWORK                                  -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="11">
+    <div class="slide-content">
+      <h2 class="reveal"><span class="accent">Capability</span> vs <span class="alt">Skill</span> — 关键区别</h2>
+      <div class="two-col reveal">
+        <div class="card-item" style="border-color: rgba(0,255,204,0.2);">
+          <h3>🔧 Capability (能力)</h3>
+          <ul class="bullet-list">
+            <li>C 函数 + <strong>JSON Schema</strong> 参数定义</li>
+            <li>LLM 作为 <strong>Tool Call</strong> 直接调用</li>
+            <li><strong>两层可见性</strong>：enabled_cap_groups (编译) + llm_visible_cap_groups (运行时)</li>
+            <li>通过 claw_cap 框架统一注册和执行</li>
+          </ul>
+        </div>
+        <div class="card-item" style="border-color: rgba(255,0,170,0.2);">
+          <h3>📋 Skill (技能)</h3>
+          <ul class="bullet-list">
+            <li><strong>SKILL.md</strong> Markdown 文件 + YAML frontmatter</li>
+            <li>告诉 LLM <strong>何时/如何使用</strong> 能力</li>
+            <li>激活时注入正文到 LLM 上下文</li>
+            <li>动态解锁 <strong>cap_groups</strong> 的 LLM 可见性</li>
+          </ul>
+        </div>
+      </div>
+      <p class="reveal" style="color:var(--text-muted);font-size:var(--small-size);margin-top:var(--element-gap);text-align:center;">
+        Skill 是说明书，Capability 是工具。激活 Skill → 解锁对应的 Capability 组 → LLM 可以调用这些工具。
+      </p>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 12: CAPABILITIES — CORE + LLM + VOICE                      -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="12">
+    <div class="slide-content">
+      <h2 class="reveal">6. <span class="accent">能力插件层</span> — 核心 + LLM + 语音</h2>
+      <div class="card-grid reveal">
+        <div class="card-item">
+          <h3>⚙️ cap_system</h3>
+          <p>重启、设备信息、内存使用、OTA 升级</p>
+        </div>
+        <div class="card-item">
+          <h3>📁 cap_files</h3>
+          <p>FATFS 文件读写、目录列表、磁盘空间</p>
+        </div>
+        <div class="card-item">
+          <h3>🕐 cap_time</h3>
+          <p>NTP 时间同步、时区设置、格式化输出</p>
+        </div>
+        <div class="card-item">
+          <h3>📋 cap_skill_mgr</h3>
+          <p>技能列表、激活/反激活、状态查询</p>
+        </div>
+        <div class="card-item">
+          <h3>🔀 cap_router_mgr</h3>
+          <p>路由规则 CRUD、热重载 router_rules.json</p>
+        </div>
+        <div class="card-item">
+          <h3>💬 cap_session_mgr</h3>
+          <p>会话创建/切换/清理、会话 ID 生成</p>
+        </div>
+        <div class="card-item">
+          <h3>📝 cap_lua</h3>
+          <p>同步/异步 Lua 执行。最重要的能力之一。</p>
+        </div>
+        <div class="card-item">
+          <h3>🔍 cap_web_search</h3>
+          <p>Brave / Tavily 搜索、URL 内容抓取</p>
+        </div>
+        <div class="card-item">
+          <h3>🎤 cap_voice + cap_asr</h3>
+          <p>TTS 文本转语音 · Opus→PCM 解码 · ASR 语音识别 · 静音检测</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 13: CAPABILITIES — IM + OTHERS                             -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="13">
+    <div class="slide-content">
+      <h2 class="reveal">6. <span class="accent">能力插件层</span> — IM 平台 + 其他</h2>
+      <div class="card-grid reveal">
+        <div class="card-item">
+          <h3>🐧 cap_im_qq</h3>
+          <p>QQ Bot API。消息收发、后台轮询。</p>
+        </div>
+        <div class="card-item">
+          <h3>🐦 cap_im_feishu</h3>
+          <p>飞书 Lark API。WebSocket 长连接。</p>
+        </div>
+        <div class="card-item">
+          <h3>✈️ cap_im_tg</h3>
+          <p>Telegram Bot API。长轮询消息。</p>
+        </div>
+        <div class="card-item">
+          <h3>💚 cap_im_wechat</h3>
+          <p>微信公众号 API。二维码登录。</p>
+        </div>
+        <div class="card-item">
+          <h3>🌐 cap_im_local</h3>
+          <p>WebIM WebSocket 通道。Web 界面聊天。</p>
+        </div>
+        <div class="card-item">
+          <h3>📎 cap_im_attachment</h3>
+          <p>IM 附件管理。图片/文件上传下载。</p>
+        </div>
+        <div class="card-item">
+          <h3>⏰ cap_scheduler</h3>
+          <p>Cron 定时任务。1 秒 tick。持久化 JSON。</p>
+        </div>
+        <div class="card-item">
+          <h3>🦾 cap_servo</h3>
+          <p>双通道舵机。思考微动+点头确认+呼吸动画。</p>
+        </div>
+        <div class="card-item">
+          <h3>🔌 MCP Client/Server</h3>
+          <p>mDNS 发现、工具注入、多 Agent 协作网络。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 14: APP ASSEMBLY                                           -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="14">
+    <div class="slide-content">
+      <h2 class="reveal">7. <span class="accent">应用组装层</span> — app_claw_start()</h2>
+      <div class="two-col reveal">
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent);font-size:var(--body-size);margin-bottom:0.3em;">15 步组装流程</h3>
+          <ol style="color:var(--text-secondary);font-size:var(--small-size);padding-left:1.5em;display:flex;flex-direction:column;gap:0.2em;">
+            <li>检查 LLM 配置完整性</li>
+            <li>初始化 Event Router</li>
+            <li>初始化 Scheduler</li>
+            <li>初始化 Memory</li>
+            <li>初始化 Skills</li>
+            <li>初始化 Capabilities (app_capabilities_init)</li>
+            <li>注册 IM 出站绑定 (5 个平台)</li>
+            <li>配置 claw_core + Context Providers</li>
+            <li>注册舵机观察者 (可选)</li>
+            <li>启动 claw_core</li>
+            <li>启动 Event Router</li>
+            <li>启动 Scheduler</li>
+            <li>启动 NTP 时间同步</li>
+            <li>启动 CLI</li>
+            <li>发布启动完成事件</li>
+          </ol>
+        </div>
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent-alt);font-size:var(--body-size);margin-bottom:0.3em;">关键注册表</h3>
+          <ul class="bullet-list">
+            <li><strong>app_capabilities.c</strong> — 能力组注册数组 s_capability_group_entries[]</li>
+            <li><strong>app_lua_modules.c</strong> — Lua 模块注册数组</li>
+            <li><strong>app_config</strong> — 30+ 字段配置结构体，NVS 序列化</li>
+            <li><strong>系统提示词</strong> — 角色 AIRI + 对话风格 + 技能规则</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 15: BOOT SEQUENCE                                          -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="15">
+    <div class="slide-content">
+      <h2 class="reveal"><span class="alt">main.c</span> — 14 步启动序列</h2>
+      <div class="reveal">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(0.3rem,0.8vh,0.6rem);font-size:var(--small-size);color:var(--text-secondary);">
+          <div><span style="color:var(--accent);">①</span> 分配运行时状态结构体</div>
+          <div><span style="color:var(--accent);">②</span> 初始化 NVS Flash</div>
+          <div><span style="color:var(--accent);">③</span> 从 NVS 加载应用配置</div>
+          <div><span style="color:var(--accent);">④</span> 设置系统时区 (TZ)</div>
+          <div><span style="color:var(--accent);">⑤</span> 初始化板卡管理器 (LCD/触摸/音频)</div>
+          <div><span style="color:var(--accent);">⑥</span> 初始化视频播放器 (扫描 SD 卡)</div>
+          <div><span style="color:var(--accent);">⑦</span> 挂载 FATFS 到 /fatfs</div>
+          <div><span style="color:var(--accent);">⑧</span> 初始化 Wi-Fi 管理器</div>
+          <div><span style="color:var(--accent);">⑨</span> 初始化 HTTP 服务器</div>
+          <div><span style="color:var(--accent);">⑩</span> 注册 Wi-Fi 状态回调</div>
+          <div><span style="color:var(--accent);">⑪</span> 启动 Wi-Fi (STA + AP fallback)</div>
+          <div><span style="color:var(--accent);">⑫</span> 启动 Agent 引擎 (app_claw_start)</div>
+          <div><span style="color:var(--accent);">⑬</span> 绑定 WebIM WebSocket</div>
+          <div><span style="color:var(--accent);">⑭</span> 启动 Hiyori 表情动画</div>
+        </div>
+      </div>
+      <p class="reveal" style="color:var(--text-muted);font-size:var(--small-size);margin-top:var(--element-gap);">
+        启动后可选启用内存监控 (每 20s 打印 RAM/PSRAM)，然后进入空闲循环。
+      </p>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 16: HTTP SERVER & WEB UI                                   -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="16">
+    <div class="slide-content">
+      <h2 class="reveal">8. <span class="accent">HTTP 服务</span> 与 Web 管理界面</h2>
+      <div class="two-col reveal">
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent);font-size:var(--body-size);margin-bottom:0.3em;">REST API 路由</h3>
+          <ul class="bullet-list">
+            <li><strong>GET /api/status</strong> — 设备状态</li>
+            <li><strong>GET/PATCH /api/config</strong> — 配置查询/更新</li>
+            <li><strong>GET /api/capabilities</strong> — 能力组状态</li>
+            <li><strong>GET/POST /api/files</strong> — 文件浏览/上传</li>
+            <li><strong>WS /api/webim</strong> — WebSocket 实时聊天</li>
+            <li><strong>GET /*</strong> — SPA fallback → index.html</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent-alt);font-size:var(--body-size);margin-bottom:0.3em;">前端技术栈</h3>
+          <ul class="bullet-list">
+            <li><strong>SolidJS + Tailwind CSS</strong></li>
+            <li>Vite 构建，静态文件嵌入固件</li>
+            <li><strong>页面</strong>：控制台 (WebIM) · 配置管理 · 文件管理 · 状态面板</li>
+            <li>响应式布局 + i18n 多语言</li>
+          </ul>
+          <h3 style="font-family:var(--font-display);color:var(--accent-warn);font-size:var(--body-size);margin:0.5em 0 0.3em;">视频播放器</h3>
+          <p style="color:var(--text-secondary);font-size:var(--small-size);">
+            Hiyori 角色 · 10 种情绪动画 MP4 · PPA 硬件加速混合
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 17: FATFS CONTENT                                          -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="17">
+    <div class="slide-content">
+      <h2 class="reveal">9. <span class="accent">FATFS</span> 预置内容 (出厂设置)</h2>
+      <div class="card-grid reveal">
+        <div class="card-item">
+          <h3>🧠 memory/</h3>
+          <p>identity.md · soul.md · MEMORY.md · memory_records.jsonl · 索引文件</p>
+        </div>
+        <div class="card-item">
+          <h3>🔀 router_rules.json</h3>
+          <p>事件匹配+分发规则。IM→Agent、启动→欢迎技能、定时器→处理能力。</p>
+        </div>
+        <div class="card-item">
+          <h3>⏰ schedules.json</h3>
+          <p>定时任务配置。Cron/间隔表达式 + 动作定义。</p>
+        </div>
+        <div class="card-item">
+          <h3>📋 skills/</h3>
+          <p>预置技能 SKILL.md。light_switch · weather_search · lua_demo 等。</p>
+        </div>
+        <div class="card-item">
+          <h3>📜 scripts/</h3>
+          <p>builtin/ (示例 Lua) + docs/ (API 参考 Markdown)。编译时自动同步。</p>
+        </div>
+        <div class="card-item">
+          <h3>🌐 static/</h3>
+          <p>Web 前端构建产物 + 品牌图片 (ESP-Claw.png Logo)</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 18: BUILD & FLASH                                          -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="18">
+    <div class="slide-content">
+      <h2 class="reveal">10. <span class="accent">构建</span> 与烧录流程</h2>
+      <div class="two-col reveal">
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent);font-size:var(--body-size);margin-bottom:0.3em;">构建命令</h3>
+          <div class="code-block">
+            <span class="cmt"># 标准增量构建</span><br>
+            <span class="kw">cd</span> application/edge_agent<br>
+            <span class="fn">idf.py</span> build<br><br>
+            <span class="cmt"># 指定板卡</span><br>
+            <span class="fn">idf.py</span> -DCONFIG_ESP_BOARD_M5STACK_CORES3=1 build<br><br>
+            <span class="cmt"># 完整重构建</span><br>
+            <span class="fn">idf.py</span> fullclean build
+          </div>
+        </div>
+        <div>
+          <h3 style="font-family:var(--font-display);color:var(--accent);font-size:var(--body-size);margin-bottom:0.3em;">4 阶段构建 + 烧录</h3>
+          <ul class="bullet-list">
+            <li><strong>CMake 配置</strong> — 补丁 · 分区表选择 · FATFS 镜像目标</li>
+            <li><strong>编译</strong> — 所有组件 + 5 核心引擎 + 19 能力 + 27 Lua 模块</li>
+            <li><strong>链接</strong> — ELF → BIN</li>
+            <li><strong>镜像生成</strong> — FATFS 打包 · 分区合并 (bootloader + ota_0 + storage)</li>
+          </ul>
+          <div class="code-block" style="margin-top:0.5em;">
+            <span class="cmt"># 烧录 + 串口监控</span><br>
+            <span class="fn">idf.py</span> flash monitor<br>
+            <span class="cmt"># 仅烧录 app 分区 (快速迭代)</span><br>
+            <span class="fn">esptool.py</span> write_flash &lt;addr&gt; build/edge_agent.bin
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 19: DEBUG & DIAGNOSTICS                                    -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="19">
+    <div class="slide-content">
+      <h2 class="reveal">11. <span class="accent">调试</span> 与诊断</h2>
+      <div class="card-grid reveal">
+        <div class="card-item">
+          <h3>📝 串口日志</h3>
+          <p>ESP_LOGE/W/I/D/V 5 个级别。运行时 esp_log_level_set() 动态调整。</p>
+        </div>
+        <div class="card-item">
+          <h3>💥 Crash 分析</h3>
+          <p>Guru Meditation → backtrace 地址 → xtensa-addr2line 解析函数名和行号。</p>
+        </div>
+        <div class="card-item">
+          <h3>💾 Core Dump</h3>
+          <p>16/32MB Flash 存储崩溃现场。idf.py coredump-info / coredump-debug (GDB)。</p>
+        </div>
+        <div class="card-item">
+          <h3>📊 内存监控</h3>
+          <p>每 20s 打印内部 RAM + PSRAM 使用量和任务栈高水位。</p>
+        </div>
+        <div class="card-item">
+          <h3>⌨️ CLI 命令</h3>
+          <p>event_router · wifi · lua exec · mcp discover/connect</p>
+        </div>
+        <div class="card-item">
+          <h3>🌐 Web 界面</h3>
+          <p>浏览器访问 http://&lt;IP&gt;/ → 配置 · WebIM 对话 · 文件管理</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 20: IMPLEMENTATION ROADMAP                                 -->
+  <!-- ================================================================ -->
+  <section class="slide content-slide" data-index="20">
+    <div class="slide-content">
+      <h2 class="reveal">附录：<span class="accent">从零实现</span> 推荐顺序</h2>
+      <div class="reveal">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(0.25rem,0.6vh,0.5rem);font-size:var(--small-size);max-width:min(90vw,700px);">
+          <div style="color:var(--text-muted);">阶段 1-2</div><div><span style="color:var(--accent);">项目骨架 + 构建系统</span> + <span style="color:var(--accent);">板卡支持</span></div>
+          <div style="color:var(--text-muted);">阶段 3-4</div><div><span style="color:var(--accent-alt);">wifi_manager</span> + captive_dns + <span style="color:var(--accent-alt);">http_reuse</span> + settings</div>
+          <div style="color:var(--text-muted);">阶段 5-6</div><div><span style="color:var(--accent);">claw_cap</span> (插件框架) + <span style="color:var(--accent);">claw_event_router</span> (事件总线)</div>
+          <div style="color:var(--text-muted);">阶段 7</div><div><span style="color:var(--accent-alt);">claw_core</span> — 仅 OpenAI 后端，先跑通 ReAct 循环</div>
+          <div style="color:var(--text-muted);">阶段 8-9</div><div><span style="color:var(--accent);">cap_system</span> + cap_files + <span style="color:var(--accent);">cap_lua</span> + 1-2 个 lua_module</div>
+          <div style="color:var(--text-muted);">阶段 10</div><div><span style="color:var(--accent-alt);">claw_memory</span> + <span style="color:var(--accent-alt);">claw_skill</span> — 让 Agent 更智能</div>
+          <div style="color:var(--text-muted);">阶段 11</div><div><span style="color:var(--accent);">app_claw</span> (组装) + main.c — 串联所有组件</div>
+          <div style="color:var(--text-muted);">阶段 12</div><div><span style="color:var(--accent-alt);">http_server</span> + Web 界面 — 配置和对话入口</div>
+          <div style="color:var(--text-muted);">阶段 13</div><div><span style="color:var(--accent);">cap_im_platform</span> (1 个平台) — 连接 IM</div>
+          <div style="color:var(--text-muted);">阶段 14</div><div><span style="color:var(--text-muted);">其余能力和 Lua 模块</span> — 按需逐步扩展</div>
+        </div>
+      </div>
+      <p class="reveal" style="color:var(--text-muted);font-size:var(--small-size);margin-top:var(--content-gap);text-align:center;">
+        🎯 核心思路：先跑通数据流 (硬件→网络→LLM→工具→回复)，再逐步丰富能力。
+      </p>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- SLIDE 21: CLOSING                                                -->
+  <!-- ================================================================ -->
+  <section class="slide title-slide" data-index="21">
+    <div class="slide-content">
+      <span class="title-badge reveal">ESP-IDF · FreeRTOS · Lua · LLM</span>
+      <h1 class="reveal" style="font-size:var(--h2-size);">Thank You</h1>
+      <p class="subtitle reveal">ESP-Claw — On-Device AI Agent Runtime</p>
+      <p class="tagline reveal">Build · Flash · Deploy · Interact</p>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- JAVASCRIPT: SLIDE CONTROLLER                                     -->
+  <!-- ================================================================ -->
+  <script>
+    class SlidePresentation {
+      constructor() {
+        this.slides = document.querySelectorAll('.slide');
+        this.currentSlide = 0;
+        this.totalSlides = this.slides.length;
+        this.progressBar = document.getElementById('progressBar');
+        this.navDots = document.getElementById('navDots');
+        this.isTransitioning = false;
+
+        this.setupIntersectionObserver();
+        this.setupKeyboardNav();
+        this.setupTouchNav();
+        this.setupWheelNav();
+        this.setupNavDots();
+        this.updateProgress();
+      }
+
+      setupIntersectionObserver() {
+        const options = {
+          root: null,
+          rootMargin: '0px',
+          threshold: 0.4
+        };
+
+        this.observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+              const index = parseInt(entry.target.dataset.index);
+              if (!isNaN(index)) {
+                this.currentSlide = index;
+                this.updateProgress();
+                this.updateNavDots();
+              }
+            }
+          });
+        }, options);
+
+        this.slides.forEach(slide => this.observer.observe(slide));
+      }
+
+      setupKeyboardNav() {
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ') {
+            e.preventDefault();
+            this.goNext();
+          } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            this.goPrev();
+          } else if (e.key === 'PageDown') {
+            e.preventDefault();
+            this.goNext();
+          } else if (e.key === 'PageUp') {
+            e.preventDefault();
+            this.goPrev();
+          } else if (e.key === 'Home') {
+            e.preventDefault();
+            this.goTo(0);
+          } else if (e.key === 'End') {
+            e.preventDefault();
+            this.goTo(this.totalSlides - 1);
+          }
+        });
+      }
+
+      setupTouchNav() {
+        let touchStartY = 0;
+        document.addEventListener('touchstart', (e) => {
+          touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        document.addEventListener('touchend', (e) => {
+          const diff = touchStartY - e.changedTouches[0].clientY;
+          if (Math.abs(diff) > 50) {
+            if (diff > 0) this.goNext();
+            else this.goPrev();
+          }
+        });
+      }
+
+      setupWheelNav() {
+        let wheelTimeout;
+        document.addEventListener('wheel', (e) => {
+          if (this.isTransitioning) return;
+          this.isTransitioning = true;
+          clearTimeout(wheelTimeout);
+
+          if (e.deltaY > 0) this.goNext();
+          else if (e.deltaY < 0) this.goPrev();
+
+          wheelTimeout = setTimeout(() => {
+            this.isTransitioning = false;
+          }, 800);
+        }, { passive: true });
+      }
+
+      goNext() {
+        if (this.currentSlide < this.totalSlides - 1) {
+          this.goTo(this.currentSlide + 1);
+        }
+      }
+
+      goPrev() {
+        if (this.currentSlide > 0) {
+          this.goTo(this.currentSlide - 1);
+        }
+      }
+
+      goTo(index) {
+        if (index >= 0 && index < this.totalSlides) {
+          this.slides[index].scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+
+      updateProgress() {
+        if (this.progressBar) {
+          const pct = ((this.currentSlide + 1) / this.totalSlides) * 100;
+          this.progressBar.style.width = pct + '%';
+        }
+      }
+
+      setupNavDots() {
+        if (!this.navDots) return;
+        this.navDots.innerHTML = '';
+
+        for (let i = 0; i < this.totalSlides; i++) {
+          const dot = document.createElement('div');
+          dot.className = 'nav-dot';
+          dot.addEventListener('click', () => this.goTo(i));
+          this.navDots.appendChild(dot);
+        }
+        this.updateNavDots();
+      }
+
+      updateNavDots() {
+        if (!this.navDots) return;
+        const dots = this.navDots.querySelectorAll('.nav-dot');
+        dots.forEach((dot, i) => {
+          dot.classList.toggle('active', i === this.currentSlide);
+        });
+      }
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => new SlidePresentation());
+    } else {
+      new SlidePresentation();
+    }
+  </script>
+
+</body>
+</html>
